@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'core/db.dart';
+import 'core/device_mode.dart';
 import 'core/files.dart';
 import 'core/logic.dart';
 import 'sync/discovery.dart';
@@ -13,8 +14,9 @@ import 'sync/sync_client.dart';
 
 /// Everything the screens need, created once at start-up.
 ///
-/// Desktop (Windows/macOS/Linux) = HUB: owns the master data and runs the
-/// Wi-Fi sync service. Phones/tablets = CLIENT: local copy + sync.
+/// HUB = the main office PC: owns the master data and runs the sync service.
+/// CLIENT = other office workstations, phones and tablets: local copy + sync
+/// with the hub over the office network. See DeviceMode.
 class Services extends ChangeNotifier {
   Services._(this.db, this.files, {this.hub, this.client, this.advertiser});
 
@@ -32,24 +34,34 @@ class Services extends ChangeNotifier {
 
   static bool get desktop => Platform.isWindows || Platform.isMacOS || Platform.isLinux;
 
-  static Future<Services> start({bool? asHub, String? dataDir}) async {
-    // CABINET_CRM_MODE=phone lets a PC run the phone version (for testing).
-    final hubMode = asHub ?? (Platform.environment['CABINET_CRM_MODE'] == 'phone' ? false : desktop);
+  /// True for an office workstation (a desktop that connects to the main PC).
+  bool get isWorkstation => !isHub && desktop;
+
+  /// Set when the data folder is on a network drive (see [looksLikeNetworkPath]).
+  String? storageWarning;
+
+  static Future<Services> start({required bool asHub, String? dataDir}) async {
+    final hubMode = asHub;
     final root = dataDir ?? Platform.environment['CABINET_CRM_DATA'] ??
         (hubMode
             ? p.join((await getApplicationDocumentsDirectory()).path, 'Cabinet CRM')
             : (await getApplicationSupportDirectory()).path);
     final db = AppDb.open(p.join(root, 'data', 'cabinet_crm.db'), isHub: hubMode);
     final files = FileStore(db, root);
+    final warning = looksLikeNetworkPath(root)
+        ? 'The data folder ($root) is on a network drive. Keep the database on this PC\'s own disk: '
+            'a database file shared over the network can get corrupted. Other computers should connect '
+            'as workstations instead (Devices → Add a phone or computer).'
+        : null;
     if (hubMode) {
       seedSettings(db);
       final hub = HubServer(db, files, hubName: db.meta('hub_name') ?? Platform.localHostname);
-      final s = Services._(db, files, hub: hub, advertiser: HubAdvertiser());
+      final s = Services._(db, files, hub: hub, advertiser: HubAdvertiser())..storageWarning = warning;
       await s.startHub();
       return s;
     }
     final client = SyncClient(db, files, discovery: discoverHub);
-    final s = Services._(db, files, client: client);
+    final s = Services._(db, files, client: client)..storageWarning = warning;
     final uid = client.userId;
     if (uid != null) s.signIn(uid);
     return s;
@@ -65,7 +77,7 @@ class Services extends ChangeNotifier {
       await advertiser?.start(h.hubId, h.hubName, h.port!);
       hubError = null;
     } catch (e) {
-      hubError = 'Wi-Fi sync is not running: $e';
+      hubError = 'Network sync is not running: $e';
     }
     notifyListeners();
   }

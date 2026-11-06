@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cabinet_crm/core/db.dart';
+import 'package:cabinet_crm/core/device_mode.dart';
 import 'package:cabinet_crm/core/files.dart';
 import 'package:cabinet_crm/core/logic.dart';
 import 'package:cabinet_crm/sync/hub_server.dart';
@@ -149,5 +150,55 @@ void main() {
     final ph = await pairedPhone(owner, 'lost-phone');
     server.revokeDevice(server.devices().first.id);
     expect(() => ph.client.sync(), throwsA(isA<SyncException>().having((e) => e.unpaired, 'unpaired', true)));
+  });
+
+  test('2020 file edited on a workstation is saved back to the main PC', () async {
+    final cid = saveCustomer(hub, {'name': 'Kit Customer'});
+    final pid = createProject(hub, customerId: cid, title: 'Kitchen');
+    final did = saveDesign(hub, projectId: pid, title: 'v1');
+    hubFiles.addBytes(projectId: pid, bytes: Uint8List.fromList([1, 1, 1]), name: 'smith.kit',
+        category: 'designs', entityType: 'design', entityId: did);
+    final ws = await pairedPhone(owner, 'workstation');
+    await ws.client.sync();
+    final f = ws.db.one('SELECT * FROM files WHERE deleted=0')!;
+    final path = await ws.client.fetchBlob(f.s('sha256'));
+    expect(path, endsWith('smith.kit'), reason: 'real file name so 2020 opens it nicely');
+    expect(ws.files.locallyModified(f.s('sha256')), isFalse);
+
+    // "Edit in 2020 and save"
+    await Future<void>.delayed(const Duration(milliseconds: 1100));
+    File(path).writeAsBytesSync([2, 2, 2, 2]);
+    File(path).setLastModifiedSync(DateTime.now().add(const Duration(seconds: 5)));
+    expect(ws.files.locallyModified(f.s('sha256')), isTrue);
+    final newId = ws.files.saveLocalChanges(f.id);
+    expect(newId, isNot(f.id));
+    final r = await ws.client.sync();
+    expect(r.uploaded, 1);
+
+    final live = hub.select("SELECT * FROM files WHERE entity_id=? AND deleted=0", [did]);
+    expect(live.single.id, newId);
+    expect(File(hubFiles.localPath(live.single.s('sha256'))!).readAsBytesSync(), [2, 2, 2, 2]);
+  });
+
+  test('file edited in place on the main PC is not served until saved', () async {
+    final cid = saveCustomer(hub, {'name': 'C'});
+    final pid = createProject(hub, customerId: cid, title: 'K');
+    final fid = hubFiles.addBytes(projectId: pid, bytes: Uint8List.fromList([5]), name: 'a.kit', category: 'designs');
+    final sha = hub.get('files', fid)!.s('sha256');
+    File(hubFiles.localPath(sha)!).writeAsBytesSync([6, 6]);
+    File(hubFiles.localPath(sha)!).setLastModifiedSync(DateTime.now().add(const Duration(seconds: 5)));
+    final ph = await pairedPhone(owner, 'p');
+    await ph.client.sync();
+    expect(() => ph.client.fetchBlob(sha), throwsA(isA<SyncException>()));
+    expect(hubFiles.locallyModified(sha), isTrue);
+    final newId = hubFiles.saveLocalChanges(fid);
+    await ph.client.sync();
+    final path = await ph.client.fetchBlob(hub.get('files', newId)!.s('sha256'));
+    expect(File(path).readAsBytesSync(), [6, 6]);
+  });
+
+  test('network drive paths are detected', () {
+    expect(looksLikeNetworkPath(r'\\server\share\Cabinet CRM'), isTrue);
+    expect(looksLikeNetworkPath('/home/me/Cabinet CRM'), isFalse);
   });
 }

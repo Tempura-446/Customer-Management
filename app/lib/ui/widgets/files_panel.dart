@@ -154,6 +154,7 @@ class _FileRow extends StatelessWidget {
     final local = svc.files.localPath(f.s('sha256'));
     final kb = (f.i('size') / 1024).ceil();
     final isImg = FileStore.isImage(f.s('name'));
+    final edited = local != null && svc.files.locallyModified(f.s('sha256'));
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
@@ -163,21 +164,33 @@ class _FileRow extends StatelessWidget {
               child: Image.file(File(local), width: 40, height: 40, fit: BoxFit.cover, cacheWidth: 120))
           : Icon(_icon(f.s('name')), size: 28),
       title: Text(f.s('name'), overflow: TextOverflow.ellipsis),
-      subtitle: Text([
-        if (showCategory) f.s('category'),
-        '$kb KB',
-        fmtDate(f.s('created_at')),
-        if (local == null) 'on PC: tap to download',
-      ].join(' · ')),
+      subtitle: edited
+          ? Text('Edited on this computer, not saved to the job yet',
+              style: TextStyle(color: Theme.of(context).colorScheme.error))
+          : Text([
+              if (showCategory) f.s('category'),
+              '$kb KB',
+              fmtDate(f.s('created_at')),
+              if (local == null) 'on the main PC: tap to download',
+            ].join(' · ')),
       onTap: () => openStoredFile(context, f),
-      trailing: IconButton(
-        icon: const Icon(Icons.delete_outline, size: 20),
-        onPressed: () async {
-          if (await confirm(context, 'Remove ${f.s('name')}?', ok: 'Remove', danger: true)) {
-            svc.files.deleteFile(f.id);
-          }
-        },
-      ),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (edited)
+          FilledButton.tonal(
+            onPressed: () => attempt(context, () async {
+              svc.files.saveLocalChanges(f.id);
+            }, success: svc.isHub ? 'Saved' : 'Saved: it goes to the main PC at the next sync'),
+            child: const Text('Save changes'),
+          ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline, size: 20),
+          onPressed: () async {
+            if (await confirm(context, 'Remove ${f.s('name')}?', ok: 'Remove', danger: true)) {
+              svc.files.deleteFile(f.id);
+            }
+          },
+        ),
+      ]),
     );
   }
 

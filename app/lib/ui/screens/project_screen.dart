@@ -70,14 +70,12 @@ class ProjectScreen extends StatelessWidget {
               if (perRow == 1) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: cards);
               final rows = <Widget>[];
               for (var i = 0; i < cards.length; i += perRow) {
-                rows.add(IntrinsicHeight(
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    for (var j = i; j < i + perRow; j++) ...[
-                      if (j > i) const SizedBox(width: 12),
-                      Expanded(child: j < cards.length ? cards[j] : const SizedBox()),
-                    ],
-                  ]),
-                ));
+                rows.add(Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  for (var j = i; j < i + perRow; j++) ...[
+                    if (j > i) const SizedBox(width: 12),
+                    Expanded(child: j < cards.length ? cards[j] : const SizedBox()),
+                  ],
+                ]));
               }
               return Column(children: rows);
             }),

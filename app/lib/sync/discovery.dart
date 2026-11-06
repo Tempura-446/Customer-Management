@@ -35,9 +35,18 @@ class HubAdvertiser {
   }
 }
 
-/// Look for the hub with [hubId] for a few seconds. Returns "host:port" list.
-Future<List<String>> discoverHub(String hubId, {Duration timeout = const Duration(seconds: 4)}) async {
-  final found = <String>[];
+/// A main office PC found on the network.
+class FoundHub {
+  FoundHub(this.hubId, this.name, this.hosts);
+  final String hubId, name;
+
+  /// "host:port" candidates, IPv4 first.
+  final List<String> hosts;
+}
+
+/// Look for main office PCs on the local network for a few seconds.
+Future<List<FoundHub>> findHubs({Duration timeout = const Duration(seconds: 4)}) async {
+  final found = <String, FoundHub>{};
   BonsoirDiscovery? discovery;
   try {
     discovery = BonsoirDiscovery(type: serviceType);
@@ -48,25 +57,33 @@ Future<List<String>> discoverHub(String hubId, {Duration timeout = const Duratio
       if (event is BonsoirDiscoveryServiceFoundEvent) {
         service.resolve(discovery!.serviceResolver);
       } else if (event is BonsoirDiscoveryServiceResolvedEvent) {
-        if (service.attributes['hub'] == hubId) {
-          // Prefer IPv4 addresses; IPv6 needs brackets in a URL.
-          final addrs = [...service.hostAddresses]..sort((a, b) => a.contains(':') ? 1 : (b.contains(':') ? -1 : 0));
-          for (final a in addrs) {
-            found.add(a.contains(':') ? '[$a]:${service.port}' : '$a:${service.port}');
-          }
-          if (service.hostname != null) found.add('${service.hostname}:${service.port}');
-        }
+        final id = service.attributes['hub'];
+        if (id == null) return;
+        // Prefer IPv4 addresses; IPv6 needs brackets in a URL.
+        final addrs = [...service.hostAddresses]..sort((a, b) => a.contains(':') ? 1 : (b.contains(':') ? -1 : 0));
+        final hosts = [
+          for (final a in addrs) a.contains(':') ? '[$a]:${service.port}' : '$a:${service.port}',
+          if (service.hostname != null) '${service.hostname}:${service.port}',
+        ];
+        final name = service.name.replaceFirst('Cabinet CRM (', '').replaceFirst(RegExp(r'\)$'), '');
+        found[id] = FoundHub(id, name, {...?found[id]?.hosts, ...hosts}.toList());
       }
     });
     await discovery.start();
     await Future<void>.delayed(timeout);
     await sub?.cancel();
   } catch (_) {
-    // ignore: discovery not available on this network / platform
+    // Discovery not available on this network / platform: typing the address still works.
   } finally {
     try {
       await discovery?.stop();
     } catch (_) {}
   }
-  return found;
+  return found.values.toList();
+}
+
+/// Look for the hub with [hubId]. Returns "host:port" list.
+Future<List<String>> discoverHub(String hubId, {Duration timeout = const Duration(seconds: 4)}) async {
+  final hubs = await findHubs(timeout: timeout);
+  return [for (final h in hubs) if (h.hubId == hubId) ...h.hosts];
 }

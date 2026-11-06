@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services.dart';
+import '../sync/sync_client.dart';
 import 'screens/customers_screens.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screens.dart';
@@ -40,43 +41,64 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _tab = 0;
   Timer? _timer;
+  Timer? _soon;
+  Services? _svc;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Phones: sync quietly on start, every 5 minutes, and when the app comes back to the foreground.
+    _svc = context.svc;
+    // Sync quietly on start, on a timer, when the app comes back to the foreground,
+    // and a few seconds after anything is changed here.
+    // Workstations sit on the office network, so they check often; phones less so.
     WidgetsBinding.instance.addPostFrameCallback((_) => _autoSync());
-    _timer = Timer.periodic(const Duration(minutes: 5), (_) => _autoSync());
+    final every = Services.desktop ? const Duration(seconds: 15) : const Duration(minutes: 1);
+    _timer = Timer.periodic(every, (_) => _autoSync());
+    _svc!.db.addListener(_onLocalChange);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _svc?.db.removeListener(_onLocalChange);
     _timer?.cancel();
+    _soon?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _autoSync();
+    if (state == AppLifecycleState.resumed) {
+      // Back from 2020 / Explorer: refresh so edited files show "Save changes".
+      _svc?.db.changed();
+      _autoSync();
+    }
+  }
+
+  void _onLocalChange() {
+    final c = _svc?.client;
+    if (c == null || !c.paired || c.syncing) return;
+    if (c.pendingChanges() == 0) return; // e.g. the change came from a sync
+    _soon?.cancel();
+    _soon = Timer(const Duration(seconds: 3), _autoSync);
   }
 
   Future<void> _autoSync() async {
     if (!mounted) return;
     final svc = context.svc;
     final c = svc.client;
-    if (c == null || !c.paired) return;
+    if (c == null || !c.paired || c.syncing) return;
     try {
       await c.sync();
       svc.reloadUser();
-    } catch (e) {
-      // Not on the shop Wi-Fi: fine, work offline. Unpaired: send to pairing screen.
-      if (e is Exception && e.toString().contains('removed')) {
+    } on SyncException catch (e) {
+      // Not on the office network: fine, work offline. Removed on the main PC: back to pairing.
+      if (e.unpaired) {
         c.unpair();
-        svc.signOut();
+        svc.forgetUser();
       }
-    }
+    } catch (_) {}
   }
 
   @override

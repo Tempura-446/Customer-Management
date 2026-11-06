@@ -2,7 +2,8 @@
 
 Standalone customer-management software for cabinet and kitchen designers who work in **2020 Design**.
 
-- **Windows app (the office PC).** This is the main program. It holds all data and files, organized by job, and runs Wi-Fi sync for the phones.
+- **Windows app.** One PC is the **main office PC**: it holds the master data and files, organized by job.
+  Any other office PCs run the same app as **workstations** connected to it over the office network.
 - **iPhone and Android app.** Take it on site: measurements, photos, notes and customer details, fully offline. It syncs with the PC whenever you're back on the shop Wi-Fi.
 - **No cloud and no subscription.** Data never leaves your office network.
 
@@ -51,22 +52,52 @@ quotes to follow up or that have expired, deposits to invoice, measurements to v
 
 On the PC, each person signs in with a PIN. Each phone is paired to one person.
 
+## Several computers: main office PC + workstations
+
+On first start, Windows asks how the computer will be used:
+
+- **Main office PC.** Choose this on **one** computer. It stores the master copy (`Documents\Cabinet CRM`) and serves
+  everyone else. Ideally it's a PC that stays on during work hours. Tick "Start Cabinet CRM when Windows starts" in
+  the installer, and set Windows to never sleep while plugged in. It can sit at the sign-in screen; sync still runs.
+- **Workstation.** Every other office PC. It keeps a local copy, syncs with the main PC every 15 seconds and a few
+  seconds after any change, and keeps working if the network drops.
+
+To connect a workstation:
+
+1. On the main PC: **Devices → Add a phone or computer**, then pick the person who will use it.
+2. On the workstation: **Find the main office PC** (or type its address), then type the 8-character code.
+
+You can change a computer's role later under **Settings → This computer**.
+
+**Why not just put the file on a network drive / server share?** The database is a single SQLite file, and SQLite
+gets corrupted when several computers open it over a network share (SMB). The app warns you if its data folder is on a
+network drive. If you have a server, install Cabinet CRM on it as the **main office PC**: workstations then use the
+server, the safe way.
+
+**2020 files on a workstation.** Opening a `.kit` downloads it and opens it in 2020. If you edit and save it, the file
+shows **"Edited on this computer – Save changes"** in the app. Click it and the new version goes to the main PC at the
+next sync. The same button appears on the main PC when a file there is edited in place. Until you save, other
+computers keep the previous version. For a real design change, prefer a new design version (v2, v3…) so the history stays.
+
+A workstation is connected as one staff member, and everyone using it acts as that person.
+
 ## How phone ↔ PC sync works
 
-1. On the PC: **Devices → Pair a phone**, then pick the person. A QR code appears; it works once and expires after 15 minutes.
+1. On the PC: **Devices → Add a phone or computer**, then pick the person. A QR code appears; it works once and expires after 15 minutes.
 2. On the phone: open Cabinet CRM, then **Scan QR code on the PC**. You can also type the address and code shown under the QR.
-3. From then on the phone works offline and syncs automatically when it can reach the PC:
-   on start, every 5 minutes, when the app is reopened, or when you tap **Sync now**.
+3. From then on the phone works offline and syncs automatically when it can reach the main PC:
+   on start, every minute, a few seconds after changes, when the app is reopened, or when you tap **Sync now**.
 
 Details:
 
-- **Phones find the PC by itself** (Bonjour/mDNS) even if its IP address changes.
-- **New jobs, quotes and invoices made on a phone** show "pending" until the next sync. The PC then gives them their J-/Q-/INV- number.
+- **Phones and workstations find the main PC by themselves** (Bonjour/mDNS) even if its IP address changes.
+- **New jobs, quotes and invoices made on a phone or workstation** show "pending" until the next sync. The main PC
+  then gives them their J-/Q-/INV- number.
 - **Phones upload photos.** They download PDFs and 2020 files only when you tap them.
 - **If two devices edit the same record,** the most recent edit wins.
-- **Lost a phone?** Remove it under **Devices** and its access stops at once.
-- **Windows Firewall:** the installer allows the app on **private** networks only. Make sure the shop Wi-Fi is set to
-  *Private* on the PC (Settings → Network & internet → Wi-Fi → your network → Private network).
+- **Lost a phone, or retiring a PC?** Remove it under **Devices** and its access stops at once.
+- **Windows Firewall:** the installer allows the app on **private** networks only. Make sure the office network is set to
+  *Private* on the main PC (Settings → Network & internet → your network → Private network).
 
 ## Getting the apps
 

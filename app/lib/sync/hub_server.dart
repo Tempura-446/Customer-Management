@@ -264,6 +264,10 @@ class HubServer {
     if (f == null || !rowVisible('files', f.m, a.user.s('role'))) throw _Http(404, 'No such file');
     final path = files.localPath(sha);
     if (path == null) throw _Http(404, 'File not on the PC yet');
+    if (!files.matchesChecksum(sha)) {
+      throw _Http(409, '${f.s('name')} was edited on the main office PC. Open the job there and click '
+          '"Save changes" on the file first.');
+    }
     return Response.ok(File(path).openRead(), headers: {'content-type': 'application/octet-stream'});
   }
 

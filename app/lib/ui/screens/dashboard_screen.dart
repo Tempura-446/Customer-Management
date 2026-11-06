@@ -42,6 +42,8 @@ class DashboardScreen extends StatelessWidget {
             }
           }
           return PageBody(maxWidth: 1400, children: [
+            if (svc.storageWarning != null) WarnBanner(svc.storageWarning!),
+            if (svc.hubError != null) WarnBanner(svc.hubError!),
             Wrap(spacing: 12, runSpacing: 12, children: [
               _Stat('Active jobs', '${projects.length}'),
               if (prices) _Stat('Quotes out', fmtMoney(quotesOut)),

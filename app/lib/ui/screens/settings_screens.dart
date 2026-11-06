@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/db.dart';
+import '../../core/device_mode.dart';
 import '../../core/logic.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
@@ -143,12 +144,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               leading: const Icon(Icons.folder_outlined),
               title: const Text('Data folder'),
               subtitle: SelectableText('${svc.files.root}\n'
-                  'Back up this folder (database + all project files), e.g. with OneDrive or an external drive.'),
+                  'Back up this folder (database + all project files) to an external drive or with backup software. '
+                  "Don't keep the live folder inside OneDrive/Dropbox or on a network drive."),
               isThreeLine: true,
               trailing: IconButton(
                   tooltip: 'Open folder',
                   icon: const Icon(Icons.open_in_new),
                   onPressed: () => openFolder(svc.files.root)),
+            ),
+          ),
+        if (Services.desktop && (svc.isOwner || !svc.isHub))
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: Icon(svc.isHub ? Icons.dns_outlined : Icons.desktop_windows_outlined),
+              title: Text('This computer: ${svc.isHub ? 'Main office PC' : 'Workstation'}'),
+              subtitle: Text(svc.isHub
+                  ? 'Holds the master copy. Workstations and phones connect to it.'
+                  : 'Syncs with ${svc.client?.hubName ?? 'the main office PC'}.'),
+              trailing: TextButton(onPressed: () => _changeMode(context, svc.isHub), child: const Text('Change')),
             ),
           ),
         Card(
@@ -157,7 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.info_outline),
             title: const Text('About Cabinet CRM'),
             subtitle: Text([
-              svc.isHub ? 'This PC is the hub (master copy).' : 'This device syncs with ${svc.client?.hubName ?? 'the office PC'}.',
+              svc.isHub ? 'This PC is the main office PC (master copy).' : 'This device syncs with ${svc.client?.hubName ?? 'the office PC'}.',
               'Signed in as ${svc.user?.s('name') ?? '-'} (${svc.role}).',
             ].join('\n')),
             isThreeLine: true,
@@ -166,6 +180,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ]),
     );
   }
+}
+
+Future<void> _changeMode(BuildContext context, bool isHub) async {
+  final ok = await confirm(
+    context,
+    isHub
+        ? 'Turn this PC into a workstation?\n\nOther workstations and phones will no longer be able to sync with it. '
+            'The master data stays in Documents\\Cabinet CRM and comes back if you switch this PC back to main office PC.'
+        : 'Make this computer the MAIN office PC?\n\nOnly do this if there is no other main PC (for example you are '
+            'replacing it). Two main PCs means two separate sets of data that never sync with each other.\n\n'
+            'To move the data from an old main PC, copy its Documents\\Cabinet CRM folder to this computer first.',
+    ok: 'Change',
+    danger: true,
+  );
+  if (!ok || !context.mounted) return;
+  await DeviceMode.save(isHub ? DeviceMode.client : DeviceMode.hub);
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (c) => const AlertDialog(
+      title: Text('Restart needed'),
+      content: Text('Close Cabinet CRM and open it again to finish the change.'),
+    ),
+  );
 }
 
 // ============================================================================ staff

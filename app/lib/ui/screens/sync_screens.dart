@@ -10,6 +10,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/db.dart';
 import '../../core/logic.dart';
 import '../../services.dart';
+import '../../sync/discovery.dart';
 import '../../sync/hub_server.dart';
 import '../../sync/sync_client.dart';
 import '../widgets/common.dart';
@@ -44,7 +45,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final user = await showDialog<Rec>(
       context: context,
       builder: (c) => SimpleDialog(
-        title: const Text('Whose phone is this?'),
+        title: const Text('Who will use this phone or computer?'),
         children: [
           for (final u in users)
             SimpleDialogOption(
@@ -66,11 +67,12 @@ class _DevicesScreenState extends State<DevicesScreen> {
     await showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text('Pair a phone for ${user.s('name')}'),
+        title: Text('Add a phone or computer for ${user.s('name')}'),
         content: SizedBox(
           width: 380,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('On the phone: open Cabinet CRM → "Scan QR code on the PC".'),
+            const Text('Phone: open Cabinet CRM → "Scan QR code on the PC".\n'
+                'Workstation: open Cabinet CRM → "Find the main office PC", then type the code below.'),
             const SizedBox(height: 12),
             Container(
               color: Colors.white,
@@ -78,7 +80,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
               child: QrImageView(data: payload, size: 260, backgroundColor: Colors.white),
             ),
             const SizedBox(height: 12),
-            const Muted('No camera? Enter these on the phone instead:'),
+            const Muted('Or enter these by hand:'),
             KeyValues([
               ('PC address', _addresses.isEmpty ? '(not connected to a network)' : _addresses.join(', ')),
               ('Port', '${svc.hub!.port ?? defaultSyncPort}'),
@@ -98,7 +100,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final svc = context.svc;
     final hub = svc.hub;
     return Scaffold(
-      appBar: AppBar(title: const Text('Devices & Wi-Fi sync')),
+      appBar: AppBar(title: const Text('Devices appBar: AppBar(title: const Text('Devices & Wi-Fi sync')), sync')),
       body: DbBuilder(
         db: svc.db,
         builder: (context) {
@@ -126,23 +128,23 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 ]),
                 const SizedBox(height: 8),
                 const Muted(
-                    'Phones sync when they are on the same Wi-Fi as this PC and this app is open. '
+                    'Workstations and phones sync when they are on the same network as this PC and this app is open (it can sit at the sign-in screen). '
                     'The installer allows Cabinet CRM through Windows Firewall on private networks. '
                     'If phones can\'t connect, check the PC\'s Wi-Fi is set to "Private" in Windows network settings.',
                     size: 12),
               ]),
             ),
             Section(
-              title: 'Paired phones & tablets',
+              title: 'Connected workstations & phones',
               action: svc.isOwner && hub != null
                   ? FilledButton.icon(
                       onPressed: hub.running ? _pair : null,
                       icon: const Icon(Icons.qr_code_2),
-                      label: const Text('Pair a phone'))
+                      label: const Text('Add a phone or computer'))
                   : null,
               child: devices.isEmpty
                   ? Muted(svc.isOwner
-                      ? 'No phones yet. Click "Pair a phone" and scan the code with the Cabinet CRM phone app.'
+                      ? 'Nothing connected yet. Click "Add a phone or computer".'
                       : 'No phones paired. The owner can pair phones here.')
                   : Column(children: [
                       for (final d in devices)
@@ -274,7 +276,8 @@ class _PhonePairScreenState extends State<PhonePairScreen> {
   bool _busy = false;
   String? _status;
 
-  static String _defaultName() => Platform.isIOS ? 'iPhone' : (Platform.isAndroid ? 'Android phone' : 'Phone');
+  static String _defaultName() =>
+      Platform.isIOS ? 'iPhone' : (Platform.isAndroid ? 'Android phone' : Platform.localHostname);
 
   @override
   void dispose() {
@@ -295,9 +298,33 @@ class _PhonePairScreenState extends State<PhonePairScreen> {
     await _pair(payload);
   }
 
-  Future<void> _manual() async {
-    final r = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => const _ManualPairDialog());
+  Future<void> _manual({String? host, int? port}) async {
+    final r = await showDialog<Map<String, dynamic>>(
+        context: context, builder: (_) => _ManualPairDialog(host: host, port: port));
     if (r != null && mounted) await _pair(r);
+  }
+
+  List<FoundHub>? _found;
+  bool _searching = false;
+
+  Future<void> _search() async {
+    setState(() {
+      _searching = true;
+      _found = null;
+    });
+    final hubs = await findHubs();
+    if (mounted) {
+      setState(() {
+        _searching = false;
+        _found = hubs;
+      });
+    }
+  }
+
+  void _pickHub(FoundHub h) {
+    final first = h.hosts.first;
+    final i = first.lastIndexOf(':');
+    _manual(host: first.substring(0, i), port: int.tryParse(first.substring(i + 1)));
   }
 
   Future<void> _pair(Map<String, dynamic> payload) async {
@@ -344,23 +371,55 @@ class _PhonePairScreenState extends State<PhonePairScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const Icon(Icons.kitchen, size: 56),
                 const SizedBox(height: 8),
-                Text('Connect to your office PC',
+                Text(Services.desktop ? 'Connect to the main office PC' : 'Connect to your office PC',
                     textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 8),
-                const Muted('1. On the PC open Cabinet CRM → Devices → "Pair a phone" and pick your name.\n'
-                    '2. Make sure this phone is on the same Wi-Fi as the PC.\n'
-                    '3. Scan the QR code shown on the PC.'),
+                Muted(Services.desktop
+                    ? '1. On the main office PC open Cabinet CRM → Devices → "Add a phone or computer" and pick your name.\n'
+                        '2. Here, click "Find the main office PC" (or type its address).\n'
+                        '3. Type the pairing code shown on the main PC.'
+                    : '1. On the PC open Cabinet CRM → Devices → "Add a phone or computer" and pick your name.\n'
+                        '2. Make sure this phone is on the same Wi-Fi as the PC.\n'
+                        '3. Scan the QR code shown on the PC.'),
                 const SizedBox(height: 20),
                 TextField(
                   controller: _deviceName,
                   enabled: !_busy,
-                  decoration: const InputDecoration(labelText: 'Name for this device', helperText: 'e.g. "Mike\'s iPhone"'),
+                  decoration: InputDecoration(
+                      labelText: 'Name for this device',
+                      helperText: Services.desktop ? 'e.g. "Front desk PC"' : 'e.g. "Mike\'s iPhone"'),
                 ),
                 const SizedBox(height: 20),
                 if (_busy) ...[
                   const Center(child: CircularProgressIndicator()),
                   const SizedBox(height: 12),
                   Center(child: Text(_status ?? '')),
+                ] else if (Services.desktop) ...[
+                  SizedBox(
+                    height: 52,
+                    child: FilledButton.icon(
+                        onPressed: _searching ? null : _search,
+                        icon: const Icon(Icons.search),
+                        label: Text(_searching ? 'Searching the network…' : 'Find the main office PC')),
+                  ),
+                  if (_found != null) ...[
+                    const SizedBox(height: 8),
+                    if (_found!.isEmpty)
+                      const Muted('No main office PC found. Check that Cabinet CRM is open on it and that both '
+                          'computers are on the same network, or type its address below.'),
+                    for (final h in _found!)
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.dns_outlined),
+                          title: Text(h.name),
+                          subtitle: Text(h.hosts.first),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => _pickHub(h),
+                        ),
+                      ),
+                  ],
+                  const SizedBox(height: 12),
+                  TextButton(onPressed: _manual, child: const Text('Type the address instead')),
                 ] else ...[
                   SizedBox(
                     height: 52,
@@ -409,14 +468,16 @@ class _ScanScreenState extends State<_ScanScreen> {
 
 /// Fallback without camera: ask the PC who it is, then pair with the code.
 class _ManualPairDialog extends StatefulWidget {
-  const _ManualPairDialog();
+  const _ManualPairDialog({this.host, this.port});
+  final String? host;
+  final int? port;
   @override
   State<_ManualPairDialog> createState() => _ManualPairDialogState();
 }
 
 class _ManualPairDialogState extends State<_ManualPairDialog> {
-  final _host = TextEditingController();
-  final _port = TextEditingController(text: '$defaultSyncPort');
+  late final _host = TextEditingController(text: widget.host ?? '');
+  late final _port = TextEditingController(text: '${widget.port ?? defaultSyncPort}');
   final _code = TextEditingController();
   bool _busy = false;
   String? _error;
@@ -465,7 +526,7 @@ class _ManualPairDialogState extends State<_ManualPairDialog> {
   Widget build(BuildContext context) => AlertDialog(
         title: const Text('Pair manually'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Muted('Shown on the PC under Devices → Pair a phone.'),
+          const Muted('Shown on the main PC under Devices → Add a phone or computer.'),
           const SizedBox(height: 12),
           TextField(
               controller: _host,

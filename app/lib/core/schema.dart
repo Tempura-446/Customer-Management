@@ -107,7 +107,8 @@ const localSchema = '''
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 -- Where a file's bytes live on THIS device.
 CREATE TABLE IF NOT EXISTS blobs (
-  sha256 TEXT PRIMARY KEY, path TEXT NOT NULL, uploaded INTEGER NOT NULL DEFAULT 1);
+  sha256 TEXT PRIMARY KEY, path TEXT NOT NULL, uploaded INTEGER NOT NULL DEFAULT 1,
+  mtime INTEGER);  -- file time when stored; later = edited on this computer
 -- Hub only: paired phones / tablets.
 CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT, token_hash TEXT NOT NULL,

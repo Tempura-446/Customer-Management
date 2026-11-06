@@ -39,7 +39,14 @@ class AppDb extends ChangeNotifier {
   AppDb._(this.raw, {required this.isHub}) {
     raw.execute('PRAGMA journal_mode = WAL');
     raw.execute(createStatements());
+    _migrate();
     deviceId = meta('device_id') ?? (setMeta('device_id', newId()));
+  }
+
+  /// Small additive migrations for databases created by older versions.
+  void _migrate() {
+    final blobCols = raw.select('PRAGMA table_info(blobs)').map((r) => r['name']).toSet();
+    if (!blobCols.contains('mtime')) raw.execute('ALTER TABLE blobs ADD COLUMN mtime INTEGER');
   }
 
   factory AppDb.open(String path, {required bool isHub}) {

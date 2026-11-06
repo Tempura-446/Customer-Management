@@ -34,13 +34,15 @@ class FileStore {
     return p.join(root, 'Projects', '${num}_${slug(pr?.s('customer') ?? '')}');
   }
 
+  static String _safeName(String name) => name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+
   String _targetPath(String projectId, String category, String name, String sha) {
     if (!db.isHub) {
-      final ext = p.extension(name);
-      return p.join(root, 'blobs', '$sha$ext');
+      // Keep the real file name so 2020 / PDF viewers show something sensible.
+      return p.join(root, 'blobs', sha.substring(0, 16), _safeName(name));
     }
     final dir = p.join(projectFolder(projectId), category);
-    final safe = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    final safe = _safeName(name);
     var target = p.join(dir, safe);
     var n = 1;
     while (File(target).existsSync()) {
@@ -53,8 +55,66 @@ class FileStore {
   void _writeBlob(String sha, Uint8List bytes, String target, {required bool uploaded}) {
     File(target).parent.createSync(recursive: true);
     File(target).writeAsBytesSync(bytes, flush: true);
-    db.raw.execute('INSERT OR REPLACE INTO blobs(sha256, path, uploaded) VALUES (?,?,?)',
-        [sha, target, uploaded ? 1 : 0]);
+    db.raw.execute('INSERT OR REPLACE INTO blobs(sha256, path, uploaded, mtime) VALUES (?,?,?,?)',
+        [sha, target, uploaded ? 1 : 0, File(target).lastModifiedSync().millisecondsSinceEpoch]);
+  }
+
+  // ------------------------------------------------------------------ files edited in place
+
+  /// True when the local copy was changed after it was stored, e.g. a .kit opened from
+  /// here, edited in 2020 and saved. Those changes are only on this computer until
+  /// [saveLocalChanges] is called.
+  bool locallyModified(String sha) {
+    final r = db.raw.select('SELECT path, mtime FROM blobs WHERE sha256=?', [sha]).firstOrNull;
+    if (r == null) return false;
+    final f = File(r['path'] as String);
+    if (!f.existsSync()) return false;
+    final now = f.lastModifiedSync().millisecondsSinceEpoch;
+    final was = r['mtime'] as int?;
+    if (was == null) {
+      // Stored before change tracking existed: start tracking from now.
+      db.raw.execute('UPDATE blobs SET mtime=? WHERE sha256=?', [now, sha]);
+      return false;
+    }
+    return now > was + 1000;
+  }
+
+  /// Record the edited local copy of [fileId] as the current version of that file.
+  /// The previous version's record is replaced; on the main PC the old bytes are
+  /// overwritten in place (that is what 2020 did), elsewhere the edit is uploaded at the next sync.
+  /// Returns the new file id, or the same id if nothing actually changed.
+  String saveLocalChanges(String fileId) {
+    final f = db.get('files', fileId)!;
+    final oldSha = f.s('sha256');
+    final path = localPath(oldSha);
+    if (path == null) throw StateError('File is not on this computer.');
+    final file = File(path);
+    final bytes = file.readAsBytesSync();
+    final newSha = sha256Of(bytes);
+    final mtime = file.lastModifiedSync().millisecondsSinceEpoch;
+    if (newSha == oldSha) {
+      db.raw.execute('UPDATE blobs SET mtime=? WHERE sha256=?', [mtime, oldSha]);
+      return fileId;
+    }
+    return db.tx(() {
+      // This path now holds the new content; the old content no longer exists here.
+      db.raw.execute('DELETE FROM blobs WHERE sha256=?', [oldSha]);
+      db.raw.execute('INSERT OR REPLACE INTO blobs(sha256, path, uploaded, mtime) VALUES (?,?,?,?)',
+          [newSha, path, db.isHub ? 1 : 0, mtime]);
+      final id = db.insert('files', {
+        'project_id': f.s('project_id'), 'entity_type': f.ns('entity_type'), 'entity_id': f.ns('entity_id'),
+        'category': f.s('category'), 'name': f.s('name'), 'size': bytes.length, 'sha256': newSha, 'mime': f.ns('mime'),
+      });
+      db.softDelete('files', fileId);
+      log(db, f.s('project_id'), 'Updated ${f.s('name')} (edited in place)');
+      return id;
+    });
+  }
+
+  /// Does the stored file still match its checksum? (Hub check before sending it to another device.)
+  bool matchesChecksum(String sha) {
+    final path = localPath(sha);
+    return path != null && sha256Of(File(path).readAsBytesSync()) == sha;
   }
 
   /// Attach a file from disk / camera to a project (optionally to a measurement, design, quote, invoice).
