@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% from "_macros.html" import breadcrumbs with context %}
+{% block title %}New invoice{% endblock %}
+{% block body %}
+{{ breadcrumbs(p, 'New invoice') }}
+<h1>New invoice <small class="muted">from quote {{ q.number }} r{{ q.revision }}</small></h1>
+<div class="billing card">
+  <div><span>Contract total</span><b>{{ billing.total|money }}</b></div>
+  <div><span>Already invoiced</span><b>{{ billing.invoiced|money }}</b></div>
+  <div><span>Left to invoice</span><b>{{ billing.uninvoiced|money }}</b></div>
+</div>
+<div class="filters">
+  {% for k, label in [('deposit','Deposit (' ~ q.deposit_pct|qty ~ '%)'), ('progress','Progress payment'), ('final','Final / balance')] %}
+    <a href="{{ url_for('invoice_new', qid=q.id, kind=k) }}" class="{{ 'on' if kind==k }}">{{ label }}</a>
+  {% endfor %}
+</div>
+<form method="post" class="card form">
+  <input type="hidden" name="kind" value="{{ kind }}">
+  <label>Amount ($) <input name="amount" type="number" step="0.01" min="0.01" max="{{ billing.uninvoiced }}" value="{{ '%.2f'|format(suggested) }}" required></label>
+  <p class="muted small">
+    {% if kind=='deposit' %}Deposit = {{ q.deposit_pct|qty }}% of {{ t.total|money }}. Collect it before ordering cabinets.
+    {% elif kind=='final' %}Final = everything not yet invoiced on this quote.
+    {% else %}Progress payment, e.g. on delivery of cabinets.{% endif %}
+  </p>
+  <label>Notes on invoice <textarea name="notes" rows="2" placeholder="Deposit to place cabinet order"></textarea></label>
+  <div class="buttons"><button class="btn primary">Create invoice</button></div>
+</form>
+{% endblock %}

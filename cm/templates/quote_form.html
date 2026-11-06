@@ -1,0 +1,83 @@
+{% extends "base.html" %}{% from "_macros.html" import breadcrumbs with context %}
+{% block title %}Edit {{ q.number }}{% endblock %}
+{% block body %}
+{{ breadcrumbs(p, q.number ~ ' r' ~ q.revision) }}
+<h1>Quote {{ q.number }} <small class="muted">rev {{ q.revision }} · draft</small></h1>
+<form method="post" enctype="multipart/form-data" class="card form" id="qform">
+  <div class="row">
+    <label>Prices design
+      <select name="design_id"><option value="">(none)</option>
+        {% for d in designs %}<option value="{{ d.id }}" {{ 'selected' if q.design_id==d.id }}>v{{ d.version }} {{ d.title or '' }}</option>{% endfor %}
+      </select></label>
+    <label>Valid until <input type="date" name="valid_until" value="{{ q.valid_until or '' }}"></label>
+  </div>
+  <p class="muted small">Tip: open the price report from 2020 next to this and copy the totals into lines (cabinets, then countertops, installation…).</p>
+  <table class="edit" id="lines">
+    <thead><tr><th>Category</th><th style="width:45%">Description</th><th>Qty</th><th>Unit price</th><th>Line</th><th></th></tr></thead>
+    <tbody>
+    {% for it in items %}
+      <tr>
+        <td><select name="category">{% for c in categories %}<option {{ 'selected' if it.category==c }}>{{ c }}</option>{% endfor %}</select></td>
+        <td><input name="description" value="{{ it.description }}"></td>
+        <td><input name="qty" type="number" step="any" value="{{ it.qty|qty }}"></td>
+        <td><input name="unit_price" type="number" step="0.01" value="{{ '%.2f'|format(it.unit_price) }}"></td>
+        <td class="line num"></td><td><button type="button" class="link danger rm">×</button></td>
+      </tr>
+    {% endfor %}
+    {% for _ in range(2 if items else 5) %}
+      <tr>
+        <td><select name="category">{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select></td>
+        <td><input name="description"></td>
+        <td><input name="qty" type="number" step="any" value="1"></td>
+        <td><input name="unit_price" type="number" step="0.01"></td>
+        <td class="line num"></td><td><button type="button" class="link danger rm">×</button></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <button type="button" class="btn small" id="addline">+ Line</button>
+
+  <div class="row totals-row">
+    <label>Discount ($) <input name="discount" type="number" step="0.01" value="{{ q.discount }}"></label>
+    <label>Tax rate (%) <input name="tax_rate" type="number" step="0.001" value="{{ q.tax_rate }}"></label>
+    <label>Deposit (%) <input name="deposit_pct" type="number" step="1" value="{{ q.deposit_pct }}"></label>
+    <div class="live-total">Subtotal <b id="sub"></b><br>Total <b id="tot"></b><br>Deposit <b id="dep"></b></div>
+  </div>
+  <label>Notes shown on quote (finishes, door style, inclusions/exclusions)
+    <textarea name="notes" rows="3">{{ q.notes or '' }}</textarea></label>
+  <label>Terms <textarea name="terms" rows="3">{{ q.terms or '' }}</textarea></label>
+  <label>Attach (2020 price report, spec sheets) <input type="file" name="files" multiple></label>
+  <div class="buttons">
+    <button class="btn" name="action" value="stay">Save</button>
+    <button class="btn" name="action" value="done">Save & close</button>
+    <button class="btn primary" name="action" value="send" onclick="return confirm('Mark as sent? The quote will be locked; later changes need a new revision.')">Save & mark sent</button>
+  </div>
+</form>
+<form method="post" action="{{ url_for('quote_delete', qid=q.id) }}" data-confirm="Delete this draft quote?"><button class="link danger">Delete draft</button></form>
+{% endblock %}
+{% block scripts %}
+<script>
+const tbody = document.querySelector('#lines tbody');
+const blank = tbody.lastElementChild.cloneNode(true);
+const f = n => '$' + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+function recalc() {
+  let sub = 0;
+  tbody.querySelectorAll('tr').forEach(r => {
+    const q = parseFloat(r.querySelector('[name=qty]').value) || 0, p = parseFloat(r.querySelector('[name=unit_price]').value) || 0;
+    const has = r.querySelector('[name=description]').value.trim();
+    r.querySelector('.line').textContent = has ? f(q * p) : '';
+    if (has) sub += q * p;
+  });
+  const v = n => parseFloat(document.querySelector(`[name=${n}]`).value) || 0;
+  const taxable = sub - Math.min(v('discount'), sub);
+  const tot = taxable + taxable * v('tax_rate') / 100;
+  document.getElementById('sub').textContent = f(sub);
+  document.getElementById('tot').textContent = f(tot);
+  document.getElementById('dep').textContent = f(tot * v('deposit_pct') / 100);
+}
+document.getElementById('qform').addEventListener('input', recalc);
+document.getElementById('addline').onclick = () => { const r = blank.cloneNode(true); r.querySelectorAll('input').forEach(i => i.value = i.name === 'qty' ? 1 : ''); tbody.appendChild(r); };
+tbody.addEventListener('click', e => { if (e.target.classList.contains('rm')) { e.target.closest('tr').remove(); recalc(); } });
+recalc();
+</script>
+{% endblock %}

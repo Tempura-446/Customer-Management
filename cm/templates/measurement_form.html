@@ -1,0 +1,69 @@
+{% extends "base.html" %}{% from "_macros.html" import breadcrumbs with context %}
+{% block title %}Measurements{% endblock %}
+{% block body %}
+{{ breadcrumbs(p, 'Measurements') }}
+<h1>{{ 'Edit measurements' if m else 'New measurements' }}</h1>
+<form method="post" enctype="multipart/form-data" class="card form">
+  <div class="row">
+    <label>Room / area <input name="room" required value="{{ m.room if m else '' }}" list="rooms" placeholder="Kitchen"></label>
+    <label>Date <input type="date" name="taken_on" value="{{ (m.taken_on if m else today) or '' }}"></label>
+    <label>Taken by <input name="taken_by" value="{{ m.taken_by or '' if m else '' }}" placeholder="Me / customer name"></label>
+  </div>
+  <datalist id="rooms">{% for k in presets %}<option>{{ k }}</option>{% endfor %}</datalist>
+  <fieldset class="radio">
+    <legend>Source</legend>
+    <label><input type="radio" name="source" value="onsite" {{ 'checked' if not m or m.source=='onsite' }}> On site (I measured it)</label>
+    <label><input type="radio" name="source" value="customer" {{ 'checked' if m and m.source=='customer' }}> From customer (needs verifying)</label>
+    <label class="check verify-box"><input type="checkbox" name="verified" {{ 'checked' if m and m.verified }}> Verified on site</label>
+  </fieldset>
+
+  <h3>Dimensions</h3>
+  <div class="preset-bar">Load checklist:
+    {% for k in presets %}<button type="button" class="btn small" data-preset="{{ k }}">{{ k }}</button>{% endfor %}
+  </div>
+  <table class="edit" id="dims">
+    <thead><tr><th>What</th><th>Value</th><th>Unit</th><th></th></tr></thead>
+    <tbody>
+    {% for it in items %}
+      <tr><td><input name="label" value="{{ it.label }}"></td><td><input name="value" value="{{ it.value or '' }}"></td>
+        <td><select name="unit">{% for u in ['in','mm','cm','ft',''] %}<option {{ 'selected' if it.unit==u }}>{{ u }}</option>{% endfor %}</select></td>
+        <td><button type="button" class="link danger rm">×</button></td></tr>
+    {% endfor %}
+    {% for _ in range(3 if items else 6) %}
+      <tr><td><input name="label"></td><td><input name="value"></td>
+        <td><select name="unit">{% for u in ['in','mm','cm','ft',''] %}<option>{{ u }}</option>{% endfor %}</select></td>
+        <td><button type="button" class="link danger rm">×</button></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <button type="button" class="btn small" id="addrow">+ Row</button>
+
+  <label>Notes (obstacles, out-of-square walls, access, existing conditions)
+    <textarea name="notes" rows="4">{{ m.notes or '' if m else '' }}</textarea></label>
+  <label>Attach sketches / site photos / customer drawings <input type="file" name="files" multiple></label>
+  <div class="buttons"><button class="btn primary">Save measurements</button></div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+const presets = {{ presets|tojson }};
+const tbody = document.querySelector('#dims tbody');
+const template = tbody.lastElementChild.cloneNode(true);
+function addRow(label='') {
+  const r = template.cloneNode(true);
+  r.querySelectorAll('input').forEach(i => i.value = '');
+  r.querySelector('input[name=label]').value = label;
+  tbody.appendChild(r); return r;
+}
+document.getElementById('addrow').onclick = () => addRow();
+tbody.addEventListener('click', e => { if (e.target.classList.contains('rm')) e.target.closest('tr').remove(); });
+document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
+  // fill empty rows first, then append
+  const empties = [...tbody.querySelectorAll('tr')].filter(r =>
+    !r.querySelector('input[name=label]').value && !r.querySelector('input[name=value]').value);
+  empties.forEach(r => r.remove());
+  presets[b.dataset.preset].forEach(l => addRow(l));
+  const room = document.querySelector('input[name=room]'); if (!room.value) room.value = b.dataset.preset;
+});
+</script>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block body %}
+<h1>Settings</h1>
+<form method="post" class="card form">
+  <h3>Business (printed on quotes & invoices)</h3>
+  <label>Business name <input name="business_name" value="{{ settings.business_name }}"></label>
+  <label>Address <input name="business_address" value="{{ settings.business_address }}"></label>
+  <div class="row">
+    <label>Phone <input name="business_phone" value="{{ settings.business_phone }}"></label>
+    <label>Email <input name="business_email" value="{{ settings.business_email }}"></label>
+  </div>
+  <h3>Defaults</h3>
+  <div class="row">
+    <label>Tax rate % <input name="default_tax_rate" type="number" step="0.001" value="{{ settings.default_tax_rate }}"></label>
+    <label>Deposit % <input name="default_deposit_pct" type="number" value="{{ settings.default_deposit_pct }}"></label>
+    <label>Quote valid (days) <input name="quote_valid_days" type="number" value="{{ settings.quote_valid_days }}"></label>
+    <label>Invoice due (days) <input name="invoice_due_days" type="number" value="{{ settings.invoice_due_days }}"></label>
+    <label>Follow up quotes after (days) <input name="quote_followup_days" type="number" value="{{ settings.quote_followup_days }}"></label>
+  </div>
+  <label>Default terms <textarea name="default_terms" rows="4">{{ settings.default_terms }}</textarea></label>
+  <div class="buttons"><button class="btn primary">Save</button></div>
+</form>
+{% endblock %}

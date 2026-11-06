@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if c and c.id else 'New' }} customer{% endblock %}
+{% block body %}
+<h1>{{ 'Edit customer' if c and c.id else 'New customer' }}</h1>
+<form method="post" class="card form">
+  <label>Name * <input name="name" required value="{{ c.name if c else '' }}" autofocus></label>
+  <div class="row">
+    <label>Phone <input name="phone" value="{{ c.phone or '' if c else '' }}"></label>
+    <label>Email <input name="email" type="email" value="{{ c.email or '' if c else '' }}"></label>
+  </div>
+  <label>Address <input name="address" value="{{ c.address or '' if c else '' }}"></label>
+  <label>Lead source <input name="source" list="sources" value="{{ c.source or '' if c else '' }}"></label>
+  <datalist id="sources"><option>Referral</option><option>Website</option><option>Showroom walk-in</option><option>Contractor</option><option>Repeat customer</option></datalist>
+  <label>Notes <textarea name="notes" rows="3">{{ c.notes or '' if c else '' }}</textarea></label>
+  {% if not (c and c.id) %}<label class="check"><input type="checkbox" name="create_project" checked> Create a project for this customer next</label>{% endif %}
+  <div class="buttons"><button class="btn primary">Save</button></div>
+</form>
+{% endblock %}

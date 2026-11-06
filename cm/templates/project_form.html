@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if p else 'New' }} project{% endblock %}
+{% block body %}
+<h1>{{ 'Edit project ' ~ p.number if p else 'New project' }}</h1>
+<form method="post" class="card form">
+  {% if not p %}
+  <label>Customer
+    <select name="customer_id" required>
+      {% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if customer and customer.id==c.id }}>{{ c.name }}</option>{% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  <label>Project title <input name="title" required placeholder="Kitchen remodel, Master bath vanity…" value="{{ p.title if p else '' }}" list="titles"></label>
+  <datalist id="titles"><option>Kitchen</option><option>Bathroom vanity</option><option>Laundry room</option><option>Closet</option><option>Built-ins</option></datalist>
+  <label>Job site address <input name="site_address" value="{{ (p.site_address if p else (customer.address if customer else '')) or '' }}"></label>
+  <p class="muted">A job number (J-YYYY-###) is assigned automatically. Use it as the name of the 2020 file and any folders.</p>
+  <div class="buttons"><button class="btn primary">Save</button></div>
+</form>
+{% endblock %}

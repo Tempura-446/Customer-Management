@@ -1,0 +1,14 @@
+<header class="letterhead">
+  <div>
+    <h1>{{ settings.business_name }}</h1>
+    <p>{{ settings.business_address }}<br>{{ settings.business_phone }} {{ settings.business_email }}</p>
+  </div>
+  <div class="doc-meta">
+    <h2>{{ doc_title }}</h2>
+    {% for k, v in doc_meta %}<p><span>{{ k }}</span> {{ v }}</p>{% endfor %}
+  </div>
+</header>
+<div class="billto">
+  <div><span class="lbl">Customer</span><b>{{ p.customer }}</b><br>{{ p.customer_address or '' }}<br>{{ p.phone or '' }} {{ p.email or '' }}</div>
+  <div><span class="lbl">Project</span><b>{{ p.title }}</b><br>{{ p.site_address or '' }}<br>Job {{ p.number }}</div>
+</div>

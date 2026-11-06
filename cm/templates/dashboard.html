@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% from "_macros.html" import status_badge with context %}
+{% block title %}Dashboard{% endblock %}
+{% block body %}
+<div class="stats">
+  <div class="stat"><span>Active projects</span><b>{{ board.values()|map('length')|sum }}</b></div>
+  <div class="stat"><span>Quotes out (sent)</span><b>{{ open_quotes|money }}</b></div>
+  <div class="stat"><span>Receivable (sent invoices)</span><b>{{ receivable|money }}</b></div>
+  <div class="stat"><span>Next actions</span><b>{{ actions|length }}</b></div>
+</div>
+
+<section class="card">
+  <h2>Next actions</h2>
+  {% if actions %}
+  <ul class="actions">
+    {% for a in actions %}
+      {% set t, tid = a.target %}
+      <li class="act-{{ a.kind }}">
+        <span class="tag">{{ a.kind }}</span>
+        <a href="{{ url_for('project_detail', pid=tid) if t=='project' else (url_for('quote_detail', qid=tid) if t=='quote' else url_for('invoice_detail', iid=tid)) }}">{{ a.text }}</a>
+        <span class="muted">{{ a.customer }} · {{ a.ref }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">Nothing waiting on you. 🎉</p>{% endif %}
+</section>
+
+<h2>Pipeline</h2>
+<div class="board">
+  {% for key, label, hint in STAGES if key in board %}
+  <div class="col">
+    <h3>{{ label }} <span class="count">{{ board[key]|length }}</span></h3>
+    <p class="hint">{{ hint }}</p>
+    {% for p in board[key] %}
+      <a class="tile" href="{{ url_for('project_detail', pid=p.id) }}">
+        <b>{{ p.customer }}</b><span>{{ p.title }}</span><small>{{ p.number }}</small>
+      </a>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

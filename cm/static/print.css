@@ -1,0 +1,18 @@
+body { font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #111; max-width: 800px; margin: 24px auto; padding: 0 24px; }
+.letterhead { display: flex; justify-content: space-between; border-bottom: 3px solid #111; padding-bottom: 12px; }
+.letterhead h1 { margin: 0; font-size: 22px; } .letterhead p { margin: 4px 0 0; color: #444; }
+.doc-meta { text-align: right; } .doc-meta h2 { margin: 0 0 6px; letter-spacing: 3px; } .doc-meta p { margin: 0; }
+.doc-meta span { color: #666; display: inline-block; min-width: 80px; }
+.billto { display: flex; gap: 40px; margin: 18px 0; } .billto > div { flex: 1; } .lbl { display: block; font-size: 11px; text-transform: uppercase; color: #777; }
+table { width: 100%; border-collapse: collapse; }
+.lines th { text-align: left; border-bottom: 2px solid #111; padding: 6px 4px; font-size: 12px; }
+.lines td { padding: 5px 4px; border-bottom: 1px solid #ddd; vertical-align: top; }
+.lines tr.cat td { font-weight: 700; background: #f3f3f3; }
+.lines tr.muted td { color: #666; }
+.num, .lines th.num { text-align: right; white-space: nowrap; }
+.totals { width: 50%; margin: 12px 0 0 auto; } .totals td { padding: 4px; } .totals td:last-child { text-align: right; }
+.totals tr.grand td { font-weight: 700; font-size: 16px; border-top: 2px solid #111; }
+h3 { font-size: 13px; margin: 20px 0 4px; } .pre { white-space: pre-wrap; margin: 0; }
+.sign { display: flex; gap: 40px; margin-top: 60px; } .sign div { flex: 1; border-top: 1px solid #111; padding-top: 4px; font-size: 11px; color: #555; }
+.noprint { text-align: right; margin-bottom: 10px; }
+@media print { .noprint { display: none; } body { margin: 0; } }

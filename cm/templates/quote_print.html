@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Quote {{ q.number }} r{{ q.revision }} {{ p.customer }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='print.css') }}"></head>
+<body>
+<div class="noprint"><button onclick="print()">Print / Save as PDF</button></div>
+{% set doc_title = 'QUOTE' %}
+{% set doc_meta = [('Quote #', q.number ~ (' rev ' ~ q.revision if q.revision > 1 else '')), ('Date', q.sent_on or q.created_at[:10]), ('Valid until', q.valid_until or '-')] + ([('Design', 'v' ~ d.version)] if d else []) %}
+{% include "_letterhead.html" %}
+<table class="lines">
+  <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr></thead>
+  <tbody>
+  {% set ns = namespace(cat=None) %}
+  {% for it in t["items"] %}
+    {% if it.category != ns.cat %}{% set ns.cat = it.category %}<tr class="cat"><td colspan="4">{{ it.category }}</td></tr>{% endif %}
+    <tr><td>{{ it.description }}</td><td class="num">{{ it.qty|qty }}</td><td class="num">{{ it.unit_price|money }}</td><td class="num">{{ (it.qty*it.unit_price)|money }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<table class="totals">
+  <tr><td>Subtotal</td><td>{{ t.subtotal|money }}</td></tr>
+  {% if t.discount %}<tr><td>Discount</td><td>−{{ t.discount|money }}</td></tr>{% endif %}
+  <tr><td>Tax ({{ q.tax_rate|qty }}%)</td><td>{{ t.tax|money }}</td></tr>
+  <tr class="grand"><td>Total</td><td>{{ t.total|money }}</td></tr>
+  <tr><td>Deposit due on acceptance ({{ q.deposit_pct|qty }}%)</td><td>{{ t.deposit|money }}</td></tr>
+</table>
+{% if q.notes %}<h3>Notes</h3><p class="pre">{{ q.notes }}</p>{% endif %}
+{% if q.terms %}<h3>Terms</h3><p class="pre">{{ q.terms }}</p>{% endif %}
+<div class="sign"><div>Customer signature</div><div>Date</div></div>
+</body></html>

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Workflow{% endblock %}
+{% block body %}
+<h1>How everything is organized</h1>
+<section class="card prose">
+<p><b>Customer → Project → (Measurements → Design → Quote → Invoice → Payment)</b></p>
+<p>A <b>customer</b> is a person. A <b>project</b> (job number <code>J-YYYY-###</code>) is one job for them.
+Everything else lives inside a project, and each step links back to the one before it, so any invoice can be traced back to the exact design version and measurements it was priced from.</p>
+<ol>
+  <li><b>Measure.</b> Add a measurement set per room. Mark the source: <i>on site</i> or <i>from customer</i>. Customer numbers stay
+      “not verified” and the app keeps reminding you until you check them on site, before you order anything.</li>
+  <li><b>Design in 2020.</b> Every time you change the drawing, save a <i>new version</i> (v1, v2…) and upload the .kit file, PDF and renders.
+      Name the file <code>J-2026-001_Smith_v2.kit</code>. Link each version to the measurements it uses.</li>
+  <li><b>Quote.</b> Click “Quote this design”. The quote records which design version it prices.
+      Once you mark it <i>sent</i> it is <b>locked</b>. To change price or scope, click <i>Revise</i>: that creates r2 and supersedes r1, so only one price is ever live.
+      If you make a new design version after quoting, the project shows a warning that the quote is out of date.</li>
+  <li><b>Accept.</b> When the customer says yes, mark the quote accepted. That design becomes the <i>approved</i> design, and all other open quotes and designs are superseded.</li>
+  <li><b>Invoice.</b> Invoices are always created <i>from the accepted quote</i>: deposit (default {{ settings.default_deposit_pct }}%), optional progress payments, then the final balance.
+      The app won't let you invoice more than the contract total.</li>
+  <li><b>Get paid.</b> Record payments against invoices. When the whole contract is collected the project moves to <i>Paid</i>. Close it when the job is done.</li>
+</ol>
+<p>The project status moves forward on its own as you add things. The <b>Dashboard → Next actions</b> list tells you what's waiting: jobs to measure, designs to quote, quotes to follow up, deposits to invoice, measurements to verify, overdue invoices.</p>
+<p>Files are stored on disk as <code>data/uploads/J-2026-001_Smith/{measurements,designs,quotes,invoices,photos}/</code>, so the folder structure matches the app even outside it.</p>
+</section>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% from "_macros.html" import breadcrumbs, file_list, doc_badge with context %}
+{% block title %}Design v{{ d.version }}{% endblock %}
+{% block body %}
+{{ breadcrumbs(p, 'Design v' ~ d.version) }}
+<div class="head">
+  <h1>Design v{{ d.version }} {% if d.title %}<small class="muted">{{ d.title }}</small>{% endif %} {{ doc_badge(d.status) }}</h1>
+  <div>
+    <a class="btn" href="{{ url_for('design_form', did=d.id) }}">Edit / add files</a>
+    <form method="post" action="{{ url_for('quote_new', pid=p.id) }}" class="inline">
+      <input type="hidden" name="design_id" value="{{ d.id }}"><button class="btn primary">Quote this design →</button></form>
+  </div>
+</div>
+<div class="grid2">
+  <section class="card">
+    <h2>Files</h2>{{ file_list(files) }}
+    {% if d.notes %}<h3>Notes</h3><p class="pre">{{ d.notes }}</p>{% endif %}
+  </section>
+  <section class="card">
+    <h2>Trail</h2>
+    <p>Measurements:
+      {% if m %}<a href="{{ url_for('measurement_detail', mid=m.id) }}">{{ m.room }}</a>
+        {% if not m.verified %}<span class="badge warn">unverified</span>{% endif %}
+      {% else %}<span class="muted">not linked</span>{% endif %}</p>
+    <p>Quotes from this design:</p>
+    {% for q in quotes %}<p><a href="{{ url_for('quote_detail', qid=q.id) }}">{{ q.number }} r{{ q.revision }}</a> {{ doc_badge(q.status) }}</p>
+    {% else %}<p class="muted">None yet.</p>{% endfor %}
+  </section>
+</div>
+<form method="post" action="{{ url_for('design_delete', did=d.id) }}" data-confirm="Delete this design version?"><button class="link danger">Delete</button></form>
+{% endblock %}
