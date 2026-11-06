@@ -37,7 +37,7 @@ or browse the folder in Explorer.
 | **Stale-quote warning** if a newer design exists than the one quoted | Stops invoicing the wrong scope |
 | **Accepting a quote** approves its design and supersedes every other open quote and design | One source of truth for ordering |
 | **Invoices only from the accepted quote**, and never more than the contract total | No missed or double billing |
-| **Status moves forward automatically** (Lead → Measured → Designing → Quoted → Approved → Invoiced → Paid → Closed / Lost) | The pipeline board stays accurate |
+| **Status moves forward automatically** (Lead → Measured → Designing → Quoted → Approved → Ordered → Received → Installed / Delivered / Picked up → Paid → Closed, or Lost) | The pipeline board stays accurate |
 
 The **Dashboard › Next actions** list shows what's waiting on you: jobs to measure, designs to start, designs to quote,
 quotes to follow up or that have expired, deposits to invoice, measurements to verify, draft invoices and overdue invoices.
@@ -117,6 +117,79 @@ If **ZPDF** (the PDF-Manager toolkit) is installed on a computer, Cabinet CRM fi
 Install it with **Install ZPDF.cmd** from the PDF-Manager repository, then check **Settings → PDF tools (ZPDF)**. Cabinet
 CRM looks in `%LOCALAPPDATA%\PDF Manager\app` and for `pdfm` on the PATH, or you can pick the program there. The
 standalone ZPDF.exe only opens a window, so use the installer version.
+
+## Scheduling (Calendar)
+
+**Calendar** shows the week, one column per day on the PC and a day-by-day list on phones. You can filter it by person
+or by kind: site measure, delivery, customer pickup, installation, service.
+
+- **Booking:** from the Calendar (**New appointment**) or from a job's **Appointments** card. Pick the type, date,
+  time, length and the person. A warning appears when that person is already booked at that time.
+- **Copy confirmation:** produces a ready-to-send message for the customer, e.g. "this confirms your kitchen
+  installation on Tuesday Nov 12 at 8:00 AM at 301 Lake Dr".
+- **My day** on the dashboard lists today's and tomorrow's appointments for whoever is signed in, with Call,
+  Map and Open job buttons. Installers get the same on their phones.
+- **Mark done** on an installation, delivery or pickup moves the job to *Installed / Delivered / Picked up*.
+- **Next actions** reminds you to book the site measure for new leads, to book the install, delivery or pickup once
+  materials are in, to confirm appointments in the next 2 days, and to mark past appointments done.
+
+## Supplier orders and production
+
+After a job is approved, use **Supplier orders & production** on the job page:
+
+1. **New order:** choose the supplier (Settings → Suppliers holds contacts, account numbers and usual lead time).
+   Add lines yourself, **from selections**, or **from the quote / QuickBooks estimate**. Choose deliver to the shop
+   or ship to the job site; shipping orders default to the site.
+2. **PDF:** a purchase order (PO-2026-001) to email to the supplier. It carries no prices.
+3. **Mark ordered:** the expected date is filled in from the supplier's lead time, and the job moves to **Ordered**.
+   Record the supplier's confirmation number and date with **Supplier confirmed**.
+4. **Everything received** (or enter part quantities). Once every order for the job is in, the job moves to
+   **Received**, and Next actions says to book the install, delivery or pickup.
+5. **Mark installed / delivered / picked up**, or mark the install appointment done: the job moves to **Installed**.
+   It becomes **Paid** once the balance is collected.
+
+Reminders: approved jobs with nothing ordered, draft orders not sent, orders past their expected date, and orders with
+no delivery date after 3 days. The dashboard also lists **materials arriving this week**.
+
+## Backups
+
+**Settings → Backups** (main PC). Choose a folder on an external drive, a NAS or a network share. Cabinet CRM then
+backs up every day while the app is open:
+
+- **Database:** a safe copy of the database, taken while running. The last 14 are kept, or a number you choose.
+- **Job files:** a copy of all job folders (`Projects`, `Email inbox`). New and changed files are added each day;
+  nothing is ever deleted from the backup.
+
+**Restore:** choose a database copy. Cabinet CRM swaps it in the next time it starts, and keeps your current data as
+`cabinet_crm.before-restore-….db`. **Restore missing files** copies back any job files that have gone missing. The
+dashboard warns the owner when backups are not set up or have not run for 3 days.
+
+## QuickBooks Desktop (Enterprise 14)
+
+**Settings → QuickBooks** (main PC, owner). Cabinet CRM connects to QuickBooks through Intuit's **Web Connector**,
+which comes with QuickBooks:
+
+- **Customers and jobs → QuickBooks.** New Cabinet CRM customers and jobs are created as *Customer* and
+  *Customer:Job* (e.g. `Jane Smith:J-2026-014 Kitchen`), so nobody types them twice.
+- **Repeat customers are matched, not duplicated.** Matching is by name in any order ("Smith, Jane" = "Jane Smith"),
+  or by phone number. QuickBooks customers Cabinet CRM doesn't know yet are imported, so you find them when they call
+  again.
+- **Estimates → jobs.** Estimates made in QuickBooks appear on the job with number, total and lines. They feed the job
+  packet, supplier-order lines and the order-type checks. A new estimate moves the job to *Quoted*; once it's turned
+  into a sales order or invoice, to *Approved*.
+- **Quotes & invoices are done in QuickBooks** (switch on that page): jobs then show the QuickBooks estimates card
+  instead of Cabinet CRM's quote and invoice cards. Use **Attach QuickBooks PDF** to file the PDFs of your QuickBooks
+  quotes and invoices with the job.
+- **QuickBooks is never changed beyond adding customers and jobs.**
+
+**Setup:**
+
+- **Where:** run the Web Connector on the **main office PC**. It must also have QuickBooks installed. The Web
+  Connector only talks to Cabinet CRM on the same computer.
+- **Steps:** on the QuickBooks page, set a password, save the **.qwc** file, add it in the Web Connector, then allow
+  access in QuickBooks. The page walks you through each step.
+- **Untested against real QuickBooks.** The sync was built and tested against sample QuickBooks responses only, so
+  check the first sync's log on the QuickBooks page.
 
 ## Staff and roles
 

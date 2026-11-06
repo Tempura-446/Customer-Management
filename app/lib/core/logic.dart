@@ -12,6 +12,7 @@ import 'package:crypto/crypto.dart';
 
 import 'db.dart';
 import 'orders.dart';
+import '../qb/qb_sync.dart';
 import 'schedule.dart';
 
 // ============================================================================ constants
@@ -861,6 +862,20 @@ List<Warning> projectWarnings(AppDb db, String projectId, {bool prices = true}) 
       }
       if (ot.key == 'shipping' && !cats.contains('Delivery') && cats.isNotEmpty) {
         w.add(Warning(false, 'Shipping order, but quote ${quoteLabel(q)} has no Delivery / shipping line.'));
+      }
+    }
+    final qbe = currentQbEstimate(db, projectId);
+    if (qbe != null) {
+      final text = qbEstimateLines(qbe).map((l) => '${l['item'] ?? ''} ${l['desc'] ?? ''}').join(' ').toLowerCase();
+      final ref = 'QuickBooks estimate #${qbe.s('ref_number')}';
+      if (text.trim().isNotEmpty) {
+        final hasInstall = text.contains('install');
+        final hasDelivery = text.contains('deliver') || text.contains('shipping') || text.contains('freight');
+        if (ot.key != 'install' && hasInstall) {
+          w.add(Warning(true, '$ref includes installation, but this is a ${ot.short.toLowerCase()} order.'));
+        }
+        if (ot.key == 'install' && !hasInstall) w.add(Warning(false, 'Installation order, but $ref has no installation line.'));
+        if (ot.key == 'shipping' && !hasDelivery) w.add(Warning(false, 'Shipping order, but $ref has no delivery / shipping line.'));
       }
     }
   }

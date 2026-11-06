@@ -9,6 +9,8 @@ import '../widgets/common.dart';
 import '../widgets/files_panel.dart';
 import 'backup_screen.dart';
 import 'mail_screens.dart';
+import 'quickbooks_screen.dart';
+import '../../sync/hub_server.dart' show defaultSyncPort;
 import 'orders_screens.dart';
 import 'pdf_tools_screen.dart';
 
@@ -152,6 +154,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : 'Automatically file measurement emails (PDFs, photos) into jobs'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => push(context, const MailSettingsScreen()),
+            ),
+          ),
+        if (svc.isHub && svc.isOwner && svc.qbwc != null)
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: const Icon(Icons.account_balance_outlined),
+              title: const Text('QuickBooks'),
+              subtitle: const Text('Customers & jobs to QuickBooks, estimates back to jobs'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => push(context, QuickBooksScreen(qbwc: svc.qbwc!, port: svc.hub!.port ?? defaultSyncPort)),
             ),
           ),
         if (svc.prices)

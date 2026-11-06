@@ -13,6 +13,7 @@ import '../core/db.dart';
 import '../core/files.dart';
 import '../core/logic.dart';
 import '../core/schema.dart';
+import '../qb/qbwc_server.dart';
 
 const defaultSyncPort = 47820;
 const serviceType = '_cabinetcrm._tcp';
@@ -84,7 +85,12 @@ class HubServer {
         }
       };
 
+  /// QuickBooks Web Connector endpoint (set on the main PC).
+  QbwcService? qbwc;
+
   Router get router => Router()
+    ..all('/qbwc', (Request r) => qbwc?.handler(r) ?? Response.notFound('QuickBooks not set up'))
+    ..all('/qbwc/<rest|.*>', (Request r, String rest) => qbwc?.handler(r) ?? Response.notFound('QuickBooks not set up'))
     ..get('/api/hello', _hello)
     ..post('/api/pair', _pair)
     ..post('/api/sync', _sync)

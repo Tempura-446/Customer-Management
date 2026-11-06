@@ -94,12 +94,17 @@ Future<Uint8List> jobPacketPdf(AppDb db, String projectId, PacketOptions o,
       db.one("SELECT * FROM quotes WHERE project_id=? AND deleted=0 AND status IN ('sent','draft') "
           'ORDER BY updated_at DESC LIMIT 1', [projectId]);
   final totals = quote == null ? null : quoteTotals(db, quote.id);
+  // Quoting done in QuickBooks: use the accepted (else newest active) QuickBooks estimate.
+  final qbe = quotesInQuickBooks(db) ? currentQbEstimate(db, projectId) : null;
   body.add(_billTo(p));
   body.add(kv([
     ('Order type', ot?.label ?? 'Not decided'),
     ('Status', stageLabel(p.s('status'))),
     ('Design', design == null ? '' : 'v${design.i('version')} ${design.s('title')} (${design.s('status')})'),
-    ('Quote', quote == null ? '' : '${quoteLabel(quote)} (${quote.s('status')})${o.prices && totals != null ? ' · ${_m(totals.total)}' : ''}'),
+    if (qbe != null)
+      ('Estimate', 'QuickBooks #${qbe.s('ref_number')} (${qbe.b('accepted') ? 'accepted' : 'open'})${o.prices ? ' · ${_m(qbe.d('total'))}' : ''}')
+    else
+      ('Quote', quote == null ? '' : '${quoteLabel(quote)} (${quote.s('status')})${o.prices && totals != null ? ' · ${_m(totals.total)}' : ''}'),
     ('Contact', [p.s('phone'), p.s('email')].where((x) => x.isNotEmpty).join('   ')),
   ]));
 
@@ -202,8 +207,39 @@ Future<Uint8List> jobPacketPdf(AppDb db, String projectId, PacketOptions o,
     if (design.ns('notes') != null) body.add(pw.Text(design.s('notes')));
   }
 
+  // ---------------------------------------------------------------- QuickBooks estimate / scope
+  if (o.quote && qbe != null) {
+    final lines = qbEstimateLines(qbe);
+    body.add(h(o.prices ? 'Estimate #${qbe.s('ref_number')} (QuickBooks)' : 'Scope of work (estimate #${qbe.s('ref_number')})'));
+    body.add(pw.Table(
+      columnWidths: o.prices
+          ? const {0: pw.FlexColumnWidth(4), 1: pw.FixedColumnWidth(40), 2: pw.FixedColumnWidth(70), 3: pw.FixedColumnWidth(80)}
+          : const {0: pw.FlexColumnWidth(4), 1: pw.FixedColumnWidth(50)},
+      children: [
+        _headRow(o.prices ? ['Description', 'Qty', 'Rate', 'Amount'] : ['Description', 'Qty'], o.prices ? {1, 2, 3} : {1}),
+        for (final l in lines)
+          pw.TableRow(decoration: _rowBorder, children: [
+            _cell([l['item'], l['desc']].where((x) => x != null && '$x'.trim().isNotEmpty).join(' - ')),
+            _cell(l['qty'] == null ? '' : fmtQty(l['qty'] as num), right: true),
+            if (o.prices) ...[
+              _cell(l['rate'] == null ? '' : _m(l['rate'] as num), right: true),
+              _cell(l['amount'] == null ? '' : _m(l['amount'] as num), right: true),
+            ],
+          ]),
+      ],
+    ));
+    if (o.prices) {
+      body.add(_totalsTable([
+        ('Subtotal', _m(qbe.d('subtotal')), false),
+        ('Tax', _m(qbe.d('tax')), false),
+        ('Total', _m(qbe.d('total')), true),
+      ]));
+    }
+    body.addAll(_textBlock('Memo', qbe.ns('memo')));
+  }
+
   // ---------------------------------------------------------------- quote / scope
-  if (o.quote && quote != null && totals != null) {
+  if (o.quote && qbe == null && quote != null && totals != null) {
     body.add(h(o.prices ? 'Quote ${quoteLabel(quote)}' : 'Scope of work (${quoteLabel(quote)})'));
     final cats = <String, List<Rec>>{};
     for (final it in totals.items) {

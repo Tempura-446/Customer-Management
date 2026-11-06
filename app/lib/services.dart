@@ -11,6 +11,8 @@ import 'core/logic.dart';
 import 'backup/backup_service.dart';
 import 'mail/mail_poller.dart';
 import 'pdf/zpdf.dart';
+import 'qb/qb_sync.dart';
+import 'qb/qbwc_server.dart';
 import 'sync/discovery.dart';
 import 'sync/hub_server.dart';
 import 'sync/sync_client.dart';
@@ -46,6 +48,9 @@ class Services extends ChangeNotifier {
   /// True for an office workstation (a desktop that connects to the main PC).
   bool get isWorkstation => !isHub && desktop;
 
+  /// Main office PC only: QuickBooks Web Connector service.
+  QbwcService? qbwc;
+
   /// ZPDF (PDF-Manager) if installed on this computer: sharper job packets, annotate/sign PDFs.
   ZPdf? zpdf;
 
@@ -76,8 +81,11 @@ class Services extends ChangeNotifier {
       seedSettings(db);
       migrateStages(db);
       final hub = HubServer(db, files, hubName: db.meta('hub_name') ?? Platform.localHostname);
+      final qbwc = QbwcService(db, QbSync(db));
+      hub.qbwc = qbwc;
       final s = Services._(db, files, hub: hub, advertiser: HubAdvertiser(), mail: MailPoller(db, files), backup: BackupService(db, files))
-        ..storageWarning = warning;
+        ..storageWarning = warning
+        ..qbwc = qbwc;
       await s.startHub();
       s.mail!.start();
       s.backup!.start();

@@ -9,6 +9,7 @@ import 'package:printing/printing.dart';
 import '../core/db.dart';
 import '../core/logic.dart';
 import '../core/orders.dart';
+import '../qb/qb_sync.dart';
 import '../services.dart';
 import '../ui/widgets/common.dart';
 import 'zpdf.dart';

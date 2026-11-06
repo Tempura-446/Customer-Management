@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/db.dart';
 import '../../core/logic.dart';
+import '../../qb/qb_sync.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
 import '../widgets/files_panel.dart';
@@ -13,6 +14,7 @@ import 'measurement_screens.dart';
 import 'orders_screens.dart';
 import 'packet_screen.dart';
 import 'projects_screens.dart';
+import 'quickbooks_screen.dart';
 import 'quote_screens.dart';
 import 'selections_screen.dart';
 
@@ -79,8 +81,9 @@ class ProjectScreen extends StatelessWidget {
               final cards = [
                 _MeasurementsCard(projectId: projectId),
                 _DesignsCard(projectId: projectId),
-                if (prices) _QuotesCard(projectId: projectId),
-                if (prices) _InvoicesCard(projectId: projectId),
+                if (prices && !quotesInQuickBooks(db)) _QuotesCard(projectId: projectId),
+                if (prices && !quotesInQuickBooks(db)) _InvoicesCard(projectId: projectId),
+                if (prices && quotesInQuickBooks(db)) QbEstimatesCard(projectId: projectId),
               ];
               final perRow = c.maxWidth >= 1100 ? cards.length : (c.maxWidth >= 640 ? 2 : 1);
               if (perRow == 1) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: cards);
