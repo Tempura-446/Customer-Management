@@ -100,7 +100,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final svc = context.svc;
     final hub = svc.hub;
     return Scaffold(
-      appBar: AppBar(title: const Text('Devices appBar: AppBar(title: const Text('Devices & Wi-Fi sync')), sync')),
+      appBar: AppBar(title: const Text('Devices & sync')),
       body: DbBuilder(
         db: svc.db,
         builder: (context) {
