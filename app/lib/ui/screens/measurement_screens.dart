@@ -168,7 +168,7 @@ class _MeasurementFormScreenState extends State<MeasurementFormScreen> {
             contentPadding: EdgeInsets.zero,
             value: _verified,
             onChanged: (v) => setState(() => _verified = v ?? false),
-            title: const Text('Verified on site'),
+            title: const Text('Verified (checked on site, or signed off by the customer)'),
             subtitle: const Text('Until then these stay flagged, and the job shows "verify before ordering".'),
           ),
         const SizedBox(height: 12),
@@ -303,7 +303,7 @@ class MeasurementScreen extends StatelessWidget {
                 FilledButton.tonalIcon(
                     onPressed: () => verifyMeasurement(db, measurementId),
                     icon: const Icon(Icons.check),
-                    label: const Text('Mark verified on site')),
+                    label: const Text('Mark verified')),
               FilledButton.icon(
                   onPressed: () => push(context, DesignFormScreen(projectId: p.id, measurementId: measurementId)),
                   icon: const Icon(Icons.architecture),

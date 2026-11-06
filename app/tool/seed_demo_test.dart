@@ -89,6 +89,12 @@ void main() {
           ]);
     ingestEmail(db, files, email('RE: 12 Oak Avenue - laundry measurements', '<demo1>'));
     ingestEmail(db, files, email('Measurements 230 Cedar Crescent', '<demo2>'));
+    // Order types.
+    for (final (name, ot) in [('Smith Family', 'install'), ('Priya Patel', 'shipping'), ("Tom O'Neil", 'install'),
+        ('Mark Rivera', 'pickup')]) {
+      final p = db.one('SELECT p.id FROM projects p JOIN customers c ON c.id=p.customer_id WHERE c.name=?', [name]);
+      if (p != null) setOrderType(db, p.id, ot);
+    }
     db.dispose();
   });
 }

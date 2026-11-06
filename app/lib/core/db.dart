@@ -45,8 +45,15 @@ class AppDb extends ChangeNotifier {
 
   /// Small additive migrations for databases created by older versions.
   void _migrate() {
-    final blobCols = raw.select('PRAGMA table_info(blobs)').map((r) => r['name']).toSet();
-    if (!blobCols.contains('mtime')) raw.execute('ALTER TABLE blobs ADD COLUMN mtime INTEGER');
+    // Columns added after the first release: (table, column, type).
+    const added = [
+      ('blobs', 'mtime', 'INTEGER'),
+      ('projects', 'order_type', 'TEXT'),
+    ];
+    for (final (table, column, type) in added) {
+      final cols = raw.select('PRAGMA table_info($table)').map((r) => r['name']).toSet();
+      if (!cols.contains(column)) raw.execute('ALTER TABLE $table ADD COLUMN $column $type');
+    }
   }
 
   factory AppDb.open(String path, {required bool isHub}) {

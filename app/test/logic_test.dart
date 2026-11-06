@@ -12,7 +12,7 @@ void main() {
 
   test('full workflow: measure -> design -> quote -> revise -> accept -> invoice -> paid', () {
     final cid = saveCustomer(db, {'name': 'Jane Smith', 'address': '1 Main St'});
-    final pid = createProject(db, customerId: cid, title: 'Kitchen');
+    final pid = createProject(db, customerId: cid, title: 'Kitchen', orderType: 'install');
     final p = db.get('projects', pid)!;
     expect(p.s('number'), matches(RegExp(r'^J-\d{4}-001$')));
     expect(p.s('site_address'), '1 Main St');
@@ -116,5 +116,34 @@ void main() {
     final odd = saveMeasurement(db, projectId: pid, room: 'X', source: 'nonsense', lines: []);
     expect(db.get('measurements', odd)!.s('source'), 'customer');
     expect(sourceOf('nonsense').needsVerify, isTrue);
+  });
+
+  test('order type: pickup / shipping / installation drive the checks', () {
+    final cid = saveCustomer(db, {'name': 'A', 'address': '1 Main St'});
+    final pid = createProject(db, customerId: cid, title: 'Kitchen', orderType: 'pickup');
+    expect(db.get('projects', pid)!.s('order_type'), 'pickup');
+    saveMeasurement(db, projectId: pid, room: 'Kitchen', source: 'customer', lines: []);
+    final d = saveDesign(db, projectId: pid);
+    final q = createQuote(db, pid, designId: d);
+    saveQuote(db, q, designId: d, taxRate: 0, discount: 0, depositPct: 50, lines: [
+      QuoteLine(category: 'Cabinets', description: 'Boxes', unitPrice: 1000),
+      QuoteLine(category: 'Installation', description: 'Install', unitPrice: 500),
+    ]);
+    var w = projectWarnings(db, pid).map((w) => w.message).toList();
+    expect(w.any((m) => m.contains('includes installation') && m.contains('pickup')), isTrue);
+    expect(w.any((m) => m.contains('sign off')), isTrue, reason: 'pickup jobs: customer sign-off, not site verify');
+
+    setOrderType(db, pid, 'install');
+    w = projectWarnings(db, pid).map((w) => w.message).toList();
+    expect(w.any((m) => m.contains('includes installation')), isFalse);
+    expect(w.any((m) => m.contains('not verified on site')), isTrue);
+
+    setOrderType(db, pid, 'shipping');
+    expect(projectWarnings(db, pid).any((w) => w.message.contains('no Delivery')), isTrue);
+    expect(projectsList(db, orderType: 'shipping').single.id, pid);
+    expect(projectsList(db, orderType: 'none'), isEmpty);
+
+    setOrderType(db, pid, null);
+    expect(projectWarnings(db, pid).any((w) => w.message.contains('Order type not set')), isTrue);
   });
 }

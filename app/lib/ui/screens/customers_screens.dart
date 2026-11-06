@@ -227,6 +227,7 @@ class CustomerDetailScreen extends StatelessWidget {
                           ItemTile(
                             title: '${numberOf(p)} · ${p.s('title')}',
                             subtitle: p.ns('site_address'),
+                            below: OrderTypeChip(p.ns('order_type')),
                             trailing: StatusChip(p.s('status')),
                             onTap: () => push(context, ProjectScreen(projectId: p.id)),
                           ),

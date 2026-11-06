@@ -52,7 +52,16 @@ pw.Widget _billTo(Rec p) {
     child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
       block('Customer', [p.s('customer'), p.s('customer_address'), [p.s('phone'), p.s('email')].join('  ')]),
       pw.SizedBox(width: 30),
-      block('Project', [p.s('title'), p.s('site_address'), 'Job ${numberOf(p)}']),
+      block('Project', [
+        p.s('title'),
+        ...switch (orderTypeOf(p.ns('order_type'))?.key) {
+          'pickup' => ['Order: material pickup only', 'Pickup at our shop'],
+          'shipping' => ['Order: shipping', 'Ship to: ${p.s('site_address')}'],
+          'install' => ['Order: supply & installation', 'Install at: ${p.s('site_address')}'],
+          _ => [p.s('site_address')],
+        },
+        'Job ${numberOf(p)}',
+      ]),
     ]),
   );
 }

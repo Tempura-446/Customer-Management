@@ -60,6 +60,28 @@ design and quote it feeds:
 Anything that isn't our own on-site measure shows **not verified** until someone ticks **Verified on site** (or clicks
 **Mark verified on site**). Approved jobs with unverified numbers appear in **Next actions → Verify**.
 
+## Order type: pickup, shipping or installation
+
+Every job has an order type, chosen on the job form or from the badge next to the job number:
+
+| Order type | Colour | Means |
+|---|---|---|
+| Material pickup only | brown | Customer collects from us. No delivery or installation |
+| Order for shipping | blue | We ship to the customer / site. No installation |
+| Installation order | green | We deliver and install |
+
+How it's used:
+
+- **Jobs list:** filter by order type (top right). The badge also shows on the job list, the pipeline and the customer page.
+- **Quotes and invoices** print it, with the address as "Ship to:" or "Install at:", or "Pickup at our shop" for pickup orders.
+- **Checks on the job page:**
+  - a pickup or shipping job whose quote includes **Installation**
+  - an installation job without an Installation line
+  - a shipping job without a **Delivery** line
+  - a job with a design or quote but no order type yet
+- **Measurement sign-off:** on pickup and shipping jobs we never go to site, so unverified customer measurements ask for
+  **customer sign-off in writing** instead of "verify on site". Mark them verified once signed.
+
 ## Staff and roles
 
 | Role | Can do |

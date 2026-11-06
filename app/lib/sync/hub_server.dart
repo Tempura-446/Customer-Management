@@ -216,6 +216,12 @@ class HubServer {
             (rejected[table] ??= []).add(id);
             continue;
           }
+          // A device running an older version may not know newer columns: keep their current values.
+          if (existing != null) {
+            for (final MapEntry(:key, :value) in existing.entries) {
+              if (!row.containsKey(key)) row[key] = value;
+            }
+          }
           row.remove('dirty');
           row['seq'] = db.nextSeq();
           row['dirty'] = 0;

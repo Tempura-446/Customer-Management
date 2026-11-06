@@ -14,13 +14,44 @@ class ProjectsScreen extends StatefulWidget {
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
   String? _status;
+  String? _orderType;
   String _q = '';
 
   @override
   Widget build(BuildContext context) {
     final db = context.db;
     return Scaffold(
-      appBar: AppBar(title: const Text('Jobs')),
+      appBar: AppBar(title: const Text('Jobs'), actions: [
+        PopupMenuButton<String>(
+          tooltip: 'Filter by order type',
+          initialValue: _orderType ?? 'all',
+          onSelected: (v) => setState(() => _orderType = v == 'all' ? null : v),
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: 'all', child: Text('All order types')),
+            for (final o in orderTypes)
+              PopupMenuItem(
+                value: o.key,
+                child: Row(children: [
+                  Icon(orderTypeIcon(o.key), color: Color(o.color), size: 18),
+                  const SizedBox(width: 8),
+                  Text(o.label),
+                ]),
+              ),
+            const PopupMenuItem(value: 'none', child: Text('Order type not set')),
+          ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: [
+              Icon(_orderType == null ? Icons.filter_list : orderTypeIcon(_orderType),
+                  color: _orderType == null ? null : orderTypeColor(_orderType)),
+              const SizedBox(width: 4),
+              Text(_orderType == null
+                  ? 'All order types'
+                  : (orderTypeOf(_orderType)?.short ?? 'Not set')),
+            ]),
+          ),
+        ),
+      ]),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => push(context, const ProjectFormScreen()),
         icon: const Icon(Icons.add),
@@ -54,7 +85,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           child: DbBuilder(
             db: db,
             builder: (context) {
-              final list = projectsList(db, status: _status, query: _q);
+              final list = projectsList(db, status: _status, query: _q, orderType: _orderType);
               if (list.isEmpty) return const Center(child: Muted('No jobs.'));
               return ListView.separated(
                 padding: const EdgeInsets.only(bottom: 80),
@@ -67,7 +98,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     subtitle: Text([numberOf(p), p.s('site_address'), 'updated ${fmtDate(p.s('updated_at'))}']
                         .where((s) => s.isNotEmpty)
                         .join(' · ')),
-                    trailing: StatusChip(p.s('status')),
+                    trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      StatusChip(p.s('status')),
+                      const SizedBox(height: 4),
+                      OrderTypeChip(p.ns('order_type')),
+                    ]),
                     onTap: () => push(context, ProjectScreen(projectId: p.id)),
                   );
                 },
@@ -91,6 +126,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   final _title = TextEditingController();
   final _site = TextEditingController();
   String? _customerId;
+  String? _orderType;
 
   @override
   void initState() {
@@ -99,6 +135,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     final p = widget.projectId == null ? null : db.get('projects', widget.projectId);
     _customerId = p?.s('customer_id') ?? widget.customerId;
     _title.text = p?.s('title') ?? '';
+    _orderType = p?.ns('order_type');
     _site.text = p?.s('site_address') ?? (db.get('customers', _customerId)?.s('address') ?? '');
   }
 
@@ -118,9 +155,13 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     String? id = widget.projectId;
     final ok = await attempt(context, () async {
       if (id == null) {
-        id = createProject(db, customerId: _customerId!, title: _title.text, siteAddress: _site.text);
+        id = createProject(db,
+            customerId: _customerId!, title: _title.text, siteAddress: _site.text, orderType: _orderType);
       } else {
-        db.update('projects', id!, {'title': _title.text.trim(), 'site_address': _site.text.trim()});
+        db.tx(() {
+          db.update('projects', id!, {'title': _title.text.trim(), 'site_address': _site.text.trim()});
+          setOrderType(db, id!, _orderType);
+        });
       }
     });
     if (!ok || !mounted) return;
@@ -180,7 +221,11 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        TextField(controller: _site, decoration: const InputDecoration(labelText: 'Job site address')),
+        TextField(controller: _site, decoration: const InputDecoration(labelText: 'Job site / delivery address')),
+        const SizedBox(height: 16),
+        Text('Order type', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 6),
+        OrderTypePicker(value: _orderType, onChanged: (v) => setState(() => _orderType = v)),
         const SizedBox(height: 8),
         Muted(context.svc.isHub
             ? 'A job number (J-YYYY-###) is assigned automatically. Use it to name the 2020 file and folders.'

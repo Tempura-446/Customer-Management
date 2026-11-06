@@ -201,4 +201,21 @@ void main() {
     expect(looksLikeNetworkPath(r'\\server\share\Cabinet CRM'), isTrue);
     expect(looksLikeNetworkPath('/home/me/Cabinet CRM'), isFalse);
   });
+
+  test('an older app version that does not know order_type cannot wipe it', () async {
+    final cid = saveCustomer(hub, {'name': 'C'});
+    final pid = createProject(hub, customerId: cid, title: 'K', orderType: 'install');
+    final ph = await pairedPhone(owner, 'old');
+    await ph.client.sync();
+    // Simulate an old phone: edit the title and push a row without the order_type column.
+    final row = Map<String, Object?>.from(ph.db.raw.select('SELECT * FROM projects WHERE id=?', [pid]).first)
+      ..remove('order_type')
+      ..remove('dirty')
+      ..['title'] = 'Kitchen (renamed on old phone)'
+      ..['updated_at'] = DateTime.now().toUtc().add(const Duration(seconds: 1)).toIso8601String();
+    server.mergePush({'projects': [row]}, role: 'owner');
+    final p = hub.get('projects', pid)!;
+    expect(p.s('title'), 'Kitchen (renamed on old phone)');
+    expect(p.s('order_type'), 'install');
+  });
 }

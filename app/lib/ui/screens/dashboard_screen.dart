@@ -182,7 +182,14 @@ class _Pipeline extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.all(8),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(p.s('customer'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Row(children: [
+                        Expanded(child: Text(p.s('customer'), style: const TextStyle(fontWeight: FontWeight.w600))),
+                        if (p.ns('order_type') != null)
+                          Tooltip(
+                            message: orderTypeOf(p.ns('order_type'))!.label,
+                            child: Icon(orderTypeIcon(p.ns('order_type')), size: 16, color: orderTypeColor(p.ns('order_type'))),
+                          ),
+                      ]),
                       Muted(p.s('title'), size: 12),
                       Muted(numberOf(p), size: 11),
                     ]),

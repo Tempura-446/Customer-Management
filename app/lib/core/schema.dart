@@ -40,7 +40,8 @@ const syncTables = <String, String>{
     customer_id TEXT NOT NULL,
     title TEXT NOT NULL,
     site_address TEXT,
-    status TEXT NOT NULL DEFAULT 'lead' ''',
+    status TEXT NOT NULL DEFAULT 'lead',
+    order_type TEXT                         -- pickup | shipping | install (null = not decided yet)''',
   'measurements': '''
     project_id TEXT NOT NULL,
     room TEXT NOT NULL,

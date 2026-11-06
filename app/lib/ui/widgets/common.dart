@@ -380,3 +380,71 @@ class SourceLegend extends StatelessWidget {
           ]),
       ]);
 }
+
+// ============================================================================ order types
+
+const _orderIcons = <String, IconData>{
+  'pickup': Icons.storefront_outlined,
+  'shipping': Icons.local_shipping_outlined,
+  'install': Icons.handyman_outlined,
+};
+
+IconData orderTypeIcon(String? key) => _orderIcons[key] ?? Icons.help_outline;
+Color orderTypeColor(String? key) => Color(orderTypeOf(key)?.color ?? 0xFF6B7385);
+
+/// Colour-coded badge for the job's order type (pickup / shipping / installation).
+class OrderTypeChip extends StatelessWidget {
+  const OrderTypeChip(this.orderType, {super.key, this.long = false});
+  final String? orderType;
+  final bool long;
+
+  @override
+  Widget build(BuildContext context) {
+    final ot = orderTypeOf(orderType);
+    final c = orderTypeColor(orderType);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.12),
+        border: Border.all(color: c.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(orderTypeIcon(orderType), size: 14, color: c),
+        const SizedBox(width: 4),
+        Text(ot == null ? 'Order type?' : (long ? ot.label : ot.short),
+            style: TextStyle(color: c, fontSize: 11, fontWeight: FontWeight.w700)),
+      ]),
+    );
+  }
+}
+
+/// Choice chips to pick the order type (or "not decided").
+class OrderTypePicker extends StatelessWidget {
+  const OrderTypePicker({super.key, required this.value, required this.onChanged});
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget chip(String? key, String label, Color c, IconData icon) => ChoiceChip(
+          avatar: Icon(icon, size: 18, color: value == key ? Colors.white : c),
+          label: Text(label),
+          selected: value == key,
+          showCheckmark: false,
+          selectedColor: c,
+          labelStyle: TextStyle(color: value == key ? Colors.white : c, fontWeight: FontWeight.w600),
+          side: BorderSide(color: c.withValues(alpha: 0.6)),
+          backgroundColor: c.withValues(alpha: 0.08),
+          onSelected: (_) => onChanged(key),
+        );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Wrap(spacing: 6, runSpacing: 6, children: [
+        for (final o in orderTypes) chip(o.key, o.label, Color(o.color), orderTypeIcon(o.key)),
+        chip(null, 'Not decided yet', const Color(0xFF6B7385), Icons.help_outline),
+      ]),
+      if (orderTypeOf(value) case final ot?)
+        Padding(padding: const EdgeInsets.only(top: 6), child: Muted(ot.hint, size: 12)),
+    ]);
+  }
+}

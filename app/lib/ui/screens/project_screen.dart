@@ -98,6 +98,27 @@ class _Header extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 8),
         child: Wrap(spacing: 16, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
           Text(numberOf(p), style: Theme.of(context).textTheme.titleMedium),
+          PopupMenuButton<String>(
+            tooltip: 'Change order type',
+            onSelected: (v) => setOrderType(context.db, p.id, v == 'none' ? null : v),
+            itemBuilder: (_) => [
+              for (final o in orderTypes)
+                PopupMenuItem(
+                  value: o.key,
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(orderTypeIcon(o.key), color: Color(o.color)),
+                    title: Text(o.label),
+                    subtitle: Text(o.hint),
+                  ),
+                ),
+              const PopupMenuItem(value: 'none', child: ListTile(dense: true, leading: Icon(Icons.help_outline), title: Text('Not decided yet'))),
+            ],
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              OrderTypeChip(p.ns('order_type'), long: true),
+              const Icon(Icons.arrow_drop_down, size: 18),
+            ]),
+          ),
           if (p.ns('phone') != null) Row(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.phone_outlined, size: 16), const SizedBox(width: 4), SelectableText(p.s('phone'))]),
           if (p.ns('email') != null) Row(mainAxisSize: MainAxisSize.min, children: [

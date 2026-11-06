@@ -103,6 +103,28 @@ const measurementSources = <MeasureSource>[
 MeasureSource sourceOf(String? key) =>
     measurementSources.firstWhere((s) => s.key == key, orElse: () => measurementSources[1]);
 
+/// How the order is fulfilled. Set on the job; printed on quotes and invoices.
+class OrderType {
+  const OrderType(this.key, this.label, this.short, this.color, this.hint, {required this.onSite});
+  final String key, label, short, hint;
+  final int color; // ARGB
+
+  /// Do we go to the site (so measurements can be verified there)?
+  final bool onSite;
+}
+
+const orderTypes = <OrderType>[
+  OrderType('pickup', 'Material pickup only', 'Pickup', 0xFF8A5A12,
+      'The customer collects the material from us. No delivery or installation.', onSite: false),
+  OrderType('shipping', 'Order for shipping', 'Shipping', 0xFF2357B8,
+      'We ship the material to the customer or site. No installation.', onSite: false),
+  OrderType('install', 'Installation order', 'Installation', 0xFF1F7A45,
+      'We deliver and install.', onSite: true),
+];
+
+/// null when the job's order type hasn't been chosen yet.
+OrderType? orderTypeOf(String? key) => orderTypes.where((o) => o.key == key).firstOrNull;
+
 const defaultSettings = {
   'business_name': 'Your Cabinet Co.',
   'business_address': '',
@@ -240,7 +262,8 @@ String saveCustomer(AppDb db, Map<String, Object?> v, {String? id}) {
   return id;
 }
 
-String createProject(AppDb db, {required String customerId, required String title, String? siteAddress}) =>
+String createProject(AppDb db,
+        {required String customerId, required String title, String? siteAddress, String? orderType}) =>
     db.tx(() {
       final c = db.get('customers', customerId)!;
       final id = db.insert('projects', {
@@ -248,10 +271,21 @@ String createProject(AppDb db, {required String customerId, required String titl
         'title': title.trim().isEmpty ? 'New project' : title.trim(),
         'site_address': (siteAddress ?? '').trim().isEmpty ? c.ns('address') : siteAddress,
         'status': 'lead',
+        'order_type': orderTypeOf(orderType)?.key,
       });
       log(db, id, 'Project created');
       return id;
     });
+
+void setOrderType(AppDb db, String projectId, String? orderType) {
+  final p = db.get('projects', projectId)!;
+  final ot = orderTypeOf(orderType);
+  if (p.ns('order_type') == ot?.key) return;
+  db.tx(() {
+    db.update('projects', projectId, {'order_type': ot?.key});
+    log(db, projectId, 'Order type → ${ot?.label ?? 'not decided'}');
+  });
+}
 
 /// Display number; phones show "pending" until the hub assigns one.
 String numberOf(Rec r) => r.ns('number') ?? '(pending sync)';
@@ -260,9 +294,13 @@ Rec? projectWithCustomer(AppDb db, String id) => db.one('''
   SELECT p.*, c.name AS customer, c.phone AS phone, c.email AS email, c.address AS customer_address
   FROM projects p JOIN customers c ON c.id=p.customer_id WHERE p.id=? AND p.deleted=0''', [id]);
 
-List<Rec> projectsList(AppDb db, {String? status, String? customerId, String? query}) {
+List<Rec> projectsList(AppDb db, {String? status, String? customerId, String? query, String? orderType}) {
   final where = ['p.deleted=0', 'c.deleted=0'];
   final args = <Object?>[];
+  if (orderType != null) {
+    where.add(orderType == 'none' ? 'p.order_type IS NULL' : 'p.order_type=?');
+    if (orderType != 'none') args.add(orderType);
+  }
   if (status != null) {
     where.add('p.status=?');
     args.add(status);
@@ -708,10 +746,35 @@ List<Warning> projectWarnings(AppDb db, String projectId, {bool prices = true}) 
         '${guessed.map((m) => m.s('room')).join(', ')}: measurements were guessed from photos. Good for a ballpark only: '
         'measure on site before final design and ordering.'));
   }
+  final project = db.get('projects', projectId);
+  final ot = orderTypeOf(project?.ns('order_type'));
   final others = unverified.where((m) => sourceOf(m.s('source')).risk < 2).toList();
   if (others.isNotEmpty && (designs.isNotEmpty || acc != null)) {
     final kinds = others.map((m) => sourceOf(m.s('source')).short.toLowerCase()).toSet().join(', ');
-    w.add(Warning(true, '${others.length} measurement set(s) not verified on site ($kinds). Verify before ordering.'));
+    w.add(Warning(
+        true,
+        ot != null && !ot.onSite
+            ? '${others.length} measurement set(s) not checked by us ($kinds). This is a ${ot.short.toLowerCase()} '
+                'order: have the customer sign off the measurements in writing before ordering, then mark them verified.'
+            : '${others.length} measurement set(s) not verified on site ($kinds). Verify before ordering.'));
+  }
+  if (project != null && ot == null && (designs.isNotEmpty || quotes.isNotEmpty)) {
+    w.add(Warning(false, 'Order type not set: material pickup, shipping or installation?'));
+  }
+  if (ot != null && prices) {
+    final live = quotes.where((q) => ['draft', 'sent', 'accepted'].contains(q.s('status')));
+    for (final q in live) {
+      final cats = quoteItems(db, q.id).map((i) => i.s('category')).toSet();
+      if (ot.key != 'install' && cats.contains('Installation')) {
+        w.add(Warning(true, 'Quote ${quoteLabel(q)} includes installation, but this is a ${ot.short.toLowerCase()} order.'));
+      }
+      if (ot.key == 'install' && !cats.contains('Installation') && cats.isNotEmpty) {
+        w.add(Warning(false, 'Installation order, but quote ${quoteLabel(q)} has no Installation line.'));
+      }
+      if (ot.key == 'shipping' && !cats.contains('Delivery') && cats.isNotEmpty) {
+        w.add(Warning(false, 'Shipping order, but quote ${quoteLabel(q)} has no Delivery / shipping line.'));
+      }
+    }
   }
   if (designs.isNotEmpty && meas.isEmpty) w.add(Warning(true, 'Design exists with no measurements on file.'));
   for (final d in designs) {
@@ -768,7 +831,11 @@ List<NextAction> nextActions(AppDb db, {bool prices = true}) {
   }
   for (final p in db.select("$pj AND p.status IN ('approved','invoiced') AND EXISTS "
       "(SELECT 1 FROM measurements m WHERE m.project_id=p.id AND m.deleted=0 AND m.source<>'onsite' AND m.verified=0)")) {
-    out.add(pa('verify', p, 'Verify measurements on site before ordering'));
+    final ot = orderTypeOf(p.ns('order_type'));
+    out.add(pa('verify', p,
+        ot != null && !ot.onSite
+            ? 'Get customer sign-off on measurements before ordering (${ot.short.toLowerCase()} order)'
+            : 'Verify measurements on site before ordering'));
   }
   if (!prices) return out;
 
