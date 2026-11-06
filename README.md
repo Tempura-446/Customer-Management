@@ -101,18 +101,17 @@ Details:
 
 ## Getting the apps
 
-Every push to GitHub builds all three apps (see **Actions → Build → Artifacts**). Pushing a version tag
-(`git tag v1.0.0 && git push --tags`) also publishes a **GitHub Release** with the Windows installer and the Android APK attached.
+- **Version releases (recommended).** Bump `version:` in `app/pubspec.yaml` (e.g. `1.1.0+2`) and push a tag `v1.1.0`.
+  GitHub then publishes a **Release** with the Windows installer and the Android APK attached, under **Releases** on
+  the repository page. Release files don't expire.
+- **Test builds.** Every other push builds everything. The installer and APK are kept as downloads for 5 days
+  under **Actions → Build → Artifacts**.
 
-| Download | What to do |
+| File | What to do |
 |---|---|
-| `CabinetCRM-Setup-x.y.z.exe` (artifact `CabinetCRM-Windows-Setup`) | **Windows installer.** Run it and click through. It installs to Program Files, adds Start menu and optional desktop shortcuts, allows Wi-Fi sync through the firewall on private networks, and includes the Visual C++ runtime. Running a newer installer upgrades in place. Uninstall from Settings → Apps; your data in `Documents\Cabinet CRM` is never deleted. Until the installer is code-signed, Windows SmartScreen shows "Windows protected your PC": click **More info → Run anyway**. |
-| `CabinetCRM-Windows-portable` | Same app as a zip, no install. For testing only: the firewall will ask on first start. |
-| `CabinetCRM-Android` | Copy `app-release.apk` to the phone and install. Allow "install unknown apps" for your file manager. |
-| `CabinetCRM-iOS-unsigned` | Proves the iPhone app builds. Installing it on iPhones needs an Apple Developer account ($99/yr) and TestFlight: see the notes in `.github/workflows/build.yml`. |
-
-To release a new version, bump `version:` in `app/pubspec.yaml` (e.g. `1.1.0+2`) and push a tag `v1.1.0`.
-The installer's file name and version come from `pubspec.yaml`.
+| `CabinetCRM-Setup-x.y.z.exe` | **Windows installer.** Run it on each PC and click through. It installs to Program Files, adds Start menu and optional desktop shortcuts, can start the app with Windows (tick this on the main office PC), allows sync through the firewall on private networks, and includes the Visual C++ runtime. A newer installer upgrades in place. Uninstall from Settings → Apps; your data in `Documents\Cabinet CRM` is never deleted. Until the installer is code-signed, SmartScreen shows "Windows protected your PC": click **More info → Run anyway**. |
+| `CabinetCRM-Android.apk` | Copy it to the phone and install. Allow "install unknown apps" for your file manager. |
+| iPhone | CI checks that the iPhone app builds. Installing it needs an Apple Developer account ($99/yr) and TestFlight: see the notes in `.github/workflows/build.yml`. |
 
 ## Backups
 

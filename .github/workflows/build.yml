@@ -31,6 +31,8 @@ jobs:
   windows:
     needs: test
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -55,21 +57,26 @@ jobs:
           $version = ((Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9.]+)').Matches[0].Groups[1].Value)
           & $iscc "/DAppVersion=$version" windows/installer/cabinet_crm.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Zip (portable, no install)
-        shell: pwsh
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath CabinetCRM-Windows-portable.zip
-      - uses: actions/upload-artifact@v4
+      # Branch builds: short-lived download (Actions storage is limited).
+      - if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
         with:
           name: CabinetCRM-Windows-Setup
           path: app/build/installer/CabinetCRM-Setup-*.exe
-      - uses: actions/upload-artifact@v4
+          retention-days: 5
+          compression-level: 0
+      # Version tags (v1.0.0): attach to the GitHub Release (doesn't use Actions storage).
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
         with:
-          name: CabinetCRM-Windows-portable
-          path: app/CabinetCRM-Windows-portable.zip
+          files: app/build/installer/CabinetCRM-Setup-*.exe
+          generate_release_notes: true
 
   android:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -85,10 +92,18 @@ jobs:
       # Signed with the debug key for now (fine for sideloading on your own phones).
       # For Google Play, add a keystore as secrets and configure signingConfigs.
       - run: flutter build apk --release
-      - uses: actions/upload-artifact@v4
+      - run: cp build/app/outputs/flutter-apk/app-release.apk CabinetCRM-Android.apk
+      - if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
         with:
           name: CabinetCRM-Android
-          path: app/build/app/outputs/flutter-apk/app-release.apk
+          path: app/CabinetCRM-Android.apk
+          retention-days: 5
+          compression-level: 0
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/CabinetCRM-Android.apk
 
   ios:
     needs: test
@@ -101,14 +116,8 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
-      # Unsigned build: proves the iOS app compiles. It cannot be installed on a phone as-is.
+      # Unsigned build: proves the iOS app compiles (not uploaded: it can't be installed as-is).
       - run: flutter build ios --release --no-codesign
-      - name: Zip
-        run: cd build/ios/iphoneos && zip -qr ../../../CabinetCRM-iOS-unsigned.zip Runner.app
-      - uses: actions/upload-artifact@v4
-        with:
-          name: CabinetCRM-iOS-unsigned
-          path: app/CabinetCRM-iOS-unsigned.zip
 
       # ---- TestFlight (later, needs an Apple Developer account, $99/yr) ----
       # Add these repository secrets, then replace the unsigned build with
@@ -122,24 +131,3 @@ jobs:
       #   APP_STORE_CONNECT_ISSUER_ID   - API key issuer id
       #   APP_STORE_CONNECT_KEY_P8      - the .p8 key contents
 
-  # Push a tag like v1.0.0 to publish a GitHub Release with the installer and APK attached.
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, android]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    defaults:
-      run:
-        working-directory: .
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/CabinetCRM-Setup-*.exe
-            dist/app-release.apk
-          generate_release_notes: true
