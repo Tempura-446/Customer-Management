@@ -82,6 +82,28 @@ How it's used:
 - **Measurement sign-off:** on pickup and shipping jobs we never go to site, so unverified customer measurements ask for
   **customer sign-off in writing** instead of "verify on site". Mark them verified once signed.
 
+## Selections and the job packet
+
+**Selections:** each job page has a Selections card (door style, wood, finish, crown, hardware, countertop, sink,
+appliances…). **Add missing checklist items** fills in the usual list; empty lines aren't saved.
+
+**Job packet:** click **Job packet** on the job page (highlighted once the job is approved) to print or share a PDF.
+There are three presets, and you can tick sections on or off:
+
+| Preset | For | Contains |
+|---|---|---|
+| **Customer** | the customer to review and sign | selections, measurements, design drawings, quote with prices, payments, approval/signature page |
+| **Production / install** | the shop and installers | contact and order type, "check before ordering" warnings, selections, measurements, drawings, scope of work (**no prices**), site photos, notes |
+| **Office file** | your records | everything |
+
+Details:
+
+- **Drawings:** PDF drawings attached to the current design (e.g. exported from 2020) are printed page by page in the packet.
+- **Sign-off:** on pickup and shipping jobs, the approval page includes "I confirm the measurements are correct".
+- **Saving:** on the main PC, **Save to project folder** files the packet with the job. Packets with prices are filed
+  with the quotes, so field staff never receive them.
+- **Field staff** can only print the production packet.
+
 ## Staff and roles
 
 | Role | Can do |

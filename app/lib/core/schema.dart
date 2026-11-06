@@ -53,6 +53,14 @@ const syncTables = <String, String>{
     measurement_id TEXT NOT NULL,
     position INTEGER NOT NULL DEFAULT 0,
     label TEXT NOT NULL, value TEXT, unit TEXT''',
+  // Customer selections for the job: door style, finish, hardware, countertop, appliances…
+  'selections': '''
+    project_id TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    category TEXT NOT NULL,
+    item TEXT NOT NULL,
+    choice TEXT,
+    notes TEXT''',
   'designs': '''
     project_id TEXT NOT NULL,
     version INTEGER NOT NULL,
@@ -136,7 +144,7 @@ String createStatements() {
     b.writeln('CREATE INDEX IF NOT EXISTS ix_${t}_dirty ON $t(dirty);');
   });
   b.writeln('CREATE INDEX IF NOT EXISTS ix_projects_customer ON projects(customer_id);');
-  for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files']) {
+  for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files', 'selections']) {
     b.writeln('CREATE INDEX IF NOT EXISTS ix_${t}_project ON $t(project_id);');
   }
   return b.toString();

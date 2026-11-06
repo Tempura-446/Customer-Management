@@ -9,8 +9,10 @@ import 'customers_screens.dart';
 import 'design_screens.dart';
 import 'invoice_screens.dart';
 import 'measurement_screens.dart';
+import 'packet_screen.dart';
 import 'projects_screens.dart';
 import 'quote_screens.dart';
+import 'selections_screen.dart';
 
 /// The job "hub": everything for one project in workflow order.
 class ProjectScreen extends StatelessWidget {
@@ -31,6 +33,18 @@ class ProjectScreen extends StatelessWidget {
           appBar: AppBar(
             title: Text('${p.s('customer')} · ${p.s('title')}'),
             actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: (stageKeys.indexOf(p.s('status')) >= stageKeys.indexOf('approved'))
+                    ? FilledButton.tonalIcon(
+                        onPressed: () => push(context, PacketScreen(projectId: projectId)),
+                        icon: const Icon(Icons.print_outlined),
+                        label: const Text('Job packet'))
+                    : IconButton(
+                        tooltip: 'Print job packet',
+                        icon: const Icon(Icons.print_outlined),
+                        onPressed: () => push(context, PacketScreen(projectId: projectId))),
+              ),
               IconButton(
                   tooltip: 'Edit job',
                   icon: const Icon(Icons.edit_outlined),
@@ -79,6 +93,7 @@ class ProjectScreen extends StatelessWidget {
               }
               return Column(children: rows);
             }),
+            _SelectionsCard(projectId: projectId),
             TwoCol(
               left: _NotesCard(projectId: projectId),
               right: FilesPanel(projectId: projectId, category: 'photos', title: 'All job files', allowCategoryChoice: true),
@@ -335,6 +350,47 @@ class _InvoicesCard extends StatelessWidget {
             onTap: () => push(context, InvoiceScreen(invoiceId: i.id)),
           ),
       ]),
+    );
+  }
+}
+
+class _SelectionsCard extends StatelessWidget {
+  const _SelectionsCard({required this.projectId});
+  final String projectId;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = selectionsFor(context.db, projectId);
+    final cats = <String, List<Rec>>{};
+    for (final r in rows) {
+      (cats[r.s('category')] ??= []).add(r);
+    }
+    return Section(
+      title: 'Selections',
+      action: TextButton.icon(
+          onPressed: () => push(context, SelectionsScreen(projectId: projectId)),
+          icon: Icon(rows.isEmpty ? Icons.add : Icons.edit_outlined, size: 18),
+          label: Text(rows.isEmpty ? 'Add selections' : 'Edit')),
+      child: rows.isEmpty
+          ? const Muted('Door style, finish, hardware, countertop, appliances… Recorded here, printed on the job packet.')
+          : Wrap(spacing: 24, runSpacing: 12, children: [
+              for (final MapEntry(key: cat, value: list) in cats.entries)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 220, maxWidth: 320),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(cat, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    for (final r in list)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text.rich(TextSpan(children: [
+                          TextSpan(text: '${r.s('item')}: ', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                          TextSpan(text: r.s('choice'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                          if (r.ns('notes') != null) TextSpan(text: ' (${r.s('notes')})'),
+                        ])),
+                      ),
+                  ]),
+                ),
+            ]),
     );
   }
 }

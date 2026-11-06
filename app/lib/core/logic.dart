@@ -125,6 +125,43 @@ const orderTypes = <OrderType>[
 /// null when the job's order type hasn't been chosen yet.
 OrderType? orderTypeOf(String? key) => orderTypes.where((o) => o.key == key).firstOrNull;
 
+/// Checklist of typical selections for a cabinet job (category -> items).
+const selectionChecklist = <String, List<String>>{
+  'Cabinets': ['Door style', 'Wood species / material', 'Finish / colour', 'Box construction', 'Drawer boxes',
+      'Crown moulding', 'Light rail', 'Toe kick / base'],
+  'Hardware': ['Pulls / knobs', 'Hinges', 'Drawer slides'],
+  'Countertops': ['Material', 'Colour / pattern', 'Edge profile', 'Backsplash'],
+  'Sink & faucet': ['Sink', 'Faucet'],
+  'Appliances': ['Range / cooktop', 'Hood', 'Refrigerator', 'Dishwasher', 'Microwave'],
+  'Accessories': ['Pull-outs / organisers', 'Lighting'],
+};
+
+class SelectionLine {
+  SelectionLine(this.category, this.item, [this.choice = '', this.notes = '']);
+  String category, item, choice, notes;
+}
+
+List<Rec> selectionsFor(AppDb db, String projectId) =>
+    db.select('SELECT * FROM selections WHERE project_id=? AND deleted=0 ORDER BY position', [projectId]);
+
+/// Replace the job's selections. Rows without a choice or note are not kept.
+void saveSelections(AppDb db, String projectId, List<SelectionLine> lines) => db.tx(() {
+      for (final r in selectionsFor(db, projectId)) {
+        db.softDelete('selections', r.id);
+      }
+      var pos = 0;
+      for (final l in lines) {
+        if (l.item.trim().isEmpty || (l.choice.trim().isEmpty && l.notes.trim().isEmpty)) continue;
+        db.insert('selections', {
+          'project_id': projectId, 'position': pos++,
+          'category': l.category.trim().isEmpty ? 'Other' : l.category.trim(),
+          'item': l.item.trim(), 'choice': l.choice.trim(), 'notes': l.notes.trim(),
+        });
+      }
+      log(db, projectId, 'Selections updated ($pos item${pos == 1 ? '' : 's'})');
+      touch(db, projectId);
+    });
+
 const defaultSettings = {
   'business_name': 'Your Cabinet Co.',
   'business_address': '',
@@ -328,7 +365,7 @@ List<Rec> customersList(AppDb db, {String? query}) {
 }
 
 void deleteProject(AppDb db, String id) => db.tx(() {
-      for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files']) {
+      for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files', 'selections']) {
         for (final r in db.select('SELECT id FROM $t WHERE project_id=? AND deleted=0', [id])) {
           db.softDelete(t, r.id);
         }

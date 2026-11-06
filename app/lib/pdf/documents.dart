@@ -10,6 +10,8 @@ import '../core/logic.dart';
 import '../services.dart';
 import '../ui/widgets/common.dart';
 
+part 'packet.dart';
+
 // ============================================================================ shared layout
 
 const _grey = PdfColor.fromInt(0xFF666666);
