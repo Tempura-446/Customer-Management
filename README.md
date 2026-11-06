@@ -65,17 +65,23 @@ Details:
 - **Phones upload photos.** They download PDFs and 2020 files only when you tap them.
 - **If two devices edit the same record,** the most recent edit wins.
 - **Lost a phone?** Remove it under **Devices** and its access stops at once.
-- **Windows Firewall** asks the first time you start the app. Tick **Private networks** and click Allow.
+- **Windows Firewall:** the installer allows the app on **private** networks only. Make sure the shop Wi-Fi is set to
+  *Private* on the PC (Settings → Network & internet → Wi-Fi → your network → Private network).
 
 ## Getting the apps
 
-Every push to GitHub builds all three apps (see **Actions → Build → Artifacts**):
+Every push to GitHub builds all three apps (see **Actions → Build → Artifacts**). Pushing a version tag
+(`git tag v1.0.0 && git push --tags`) also publishes a **GitHub Release** with the Windows installer and the Android APK attached.
 
-| Artifact | What to do |
+| Download | What to do |
 |---|---|
-| `CabinetCRM-Windows` | Unzip anywhere, e.g. `C:\Program Files\Cabinet CRM`, and run `cabinet_crm.exe`. Windows SmartScreen may warn until the app is code-signed. |
+| `CabinetCRM-Setup-x.y.z.exe` (artifact `CabinetCRM-Windows-Setup`) | **Windows installer.** Run it and click through. It installs to Program Files, adds Start menu and optional desktop shortcuts, allows Wi-Fi sync through the firewall on private networks, and includes the Visual C++ runtime. Running a newer installer upgrades in place. Uninstall from Settings → Apps; your data in `Documents\Cabinet CRM` is never deleted. Until the installer is code-signed, Windows SmartScreen shows "Windows protected your PC": click **More info → Run anyway**. |
+| `CabinetCRM-Windows-portable` | Same app as a zip, no install. For testing only: the firewall will ask on first start. |
 | `CabinetCRM-Android` | Copy `app-release.apk` to the phone and install. Allow "install unknown apps" for your file manager. |
 | `CabinetCRM-iOS-unsigned` | Proves the iPhone app builds. Installing it on iPhones needs an Apple Developer account ($99/yr) and TestFlight: see the notes in `.github/workflows/build.yml`. |
+
+To release a new version, bump `version:` in `app/pubspec.yaml` (e.g. `1.1.0+2`) and push a tag `v1.1.0`.
+The installer's file name and version come from `pubspec.yaml`.
 
 ## Backups
 

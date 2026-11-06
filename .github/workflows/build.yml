@@ -2,6 +2,8 @@ name: Build
 
 on:
   push:
+    branches: ["**"]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -38,13 +40,32 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter build windows --release
-      - name: Zip
+      - name: Bundle Visual C++ runtime
+        # Flutter apps need these DLLs; shipping them next to the exe means no separate VC++ install.
         shell: pwsh
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath CabinetCRM-Windows.zip
+        run: |
+          foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+            Copy-Item "$env:WINDIR\System32\$dll" build/windows/x64/runner/Release/
+          }
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
+          $version = ((Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9.]+)').Matches[0].Groups[1].Value)
+          & $iscc "/DAppVersion=$version" windows/installer/cabinet_crm.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Zip (portable, no install)
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath CabinetCRM-Windows-portable.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: CabinetCRM-Windows
-          path: app/CabinetCRM-Windows.zip
+          name: CabinetCRM-Windows-Setup
+          path: app/build/installer/CabinetCRM-Setup-*.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CabinetCRM-Windows-portable
+          path: app/CabinetCRM-Windows-portable.zip
 
   android:
     needs: test
@@ -100,3 +121,25 @@ jobs:
       #   APP_STORE_CONNECT_KEY_ID      - App Store Connect API key id
       #   APP_STORE_CONNECT_ISSUER_ID   - API key issuer id
       #   APP_STORE_CONNECT_KEY_P8      - the .p8 key contents
+
+  # Push a tag like v1.0.0 to publish a GitHub Release with the installer and APK attached.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/CabinetCRM-Setup-*.exe
+            dist/app-release.apk
+          generate_release_notes: true

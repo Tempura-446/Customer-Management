@@ -127,8 +127,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 const SizedBox(height: 8),
                 const Muted(
                     'Phones sync when they are on the same Wi-Fi as this PC and this app is open. '
-                    'The first time, Windows asks whether to allow Cabinet CRM on the network: '
-                    'tick "Private networks" and click Allow.',
+                    'The installer allows Cabinet CRM through Windows Firewall on private networks. '
+                    'If phones can\'t connect, check the PC\'s Wi-Fi is set to "Private" in Windows network settings.',
                     size: 12),
               ]),
             ),
