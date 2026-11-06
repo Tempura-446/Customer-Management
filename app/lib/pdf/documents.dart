@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../core/db.dart';
 import '../core/logic.dart';
 import '../services.dart';
 import '../ui/widgets/common.dart';
+import 'zpdf.dart';
 
 part 'packet.dart';
 

@@ -180,6 +180,17 @@ class _FileRow extends StatelessWidget {
             ].join(' · ')),
       onTap: () => openStoredFile(context, f),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (svc.zpdf != null && f.s('name').toLowerCase().endsWith('.pdf'))
+          IconButton(
+            tooltip: 'Open in ZPDF (annotate, sign, edit)',
+            icon: const Icon(Icons.draw_outlined, size: 20),
+            onPressed: () => attempt(context, () async {
+              var path = svc.files.localPath(f.s('sha256'));
+              path ??= await svc.client?.fetchBlob(f.s('sha256'));
+              if (path == null) throw Exception('File is not on this computer.');
+              await svc.zpdf!.view([path]);
+            }),
+          ),
         if (edited)
           FilledButton.tonal(
             onPressed: () => attempt(context, () async {

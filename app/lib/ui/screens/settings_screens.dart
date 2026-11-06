@@ -8,6 +8,7 @@ import '../../services.dart';
 import '../widgets/common.dart';
 import '../widgets/files_panel.dart';
 import 'mail_screens.dart';
+import 'pdf_tools_screen.dart';
 
 const _labels = {
   'business_name': 'Business name',
@@ -149,6 +150,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : 'Automatically file measurement emails (PDFs, photos) into jobs'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => push(context, const MailSettingsScreen()),
+            ),
+          ),
+        if (Services.desktop)
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: const Icon(Icons.picture_as_pdf_outlined),
+              title: const Text('PDF tools (ZPDF)'),
+              subtitle: Text(svc.zpdf != null
+                  ? 'ZPDF connected: sharper job packets, annotate & sign PDFs'
+                  : 'Optional: connect ZPDF for sharper job packets'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => push(context, const PdfToolsScreen()),
             ),
           ),
         if (svc.prices)

@@ -14,16 +14,23 @@ class PacketOptions {
     this.payments = true,
     this.notes = true,
     this.signoff = true,
+    this.attachedPdfs = true,
     this.maxPhotos = 12,
   });
 
   String title;
   bool prices, warnings, selections, measurements, photos, drawings, quote, payments, notes, signoff;
+
+  /// PDFs attached to measurement sets (e.g. the techs' measurement sheets from the email inbox).
+  bool attachedPdfs;
   int maxPhotos;
+
+  /// Internal: page footer with "Page x of y" (off when ZPDF numbers the merged packet).
+  bool numberPages = true;
 
   /// For the customer to review and sign: selections, drawings, price.
   factory PacketOptions.customer() => PacketOptions(
-      title: 'JOB SUMMARY', warnings: false, photos: false, notes: false, payments: true);
+      title: 'JOB SUMMARY', warnings: false, photos: false, notes: false, payments: true, attachedPdfs: false);
 
   /// For the shop / installers: everything needed to build and install, no prices.
   factory PacketOptions.production() => PacketOptions(
@@ -312,39 +319,50 @@ Future<Uint8List> jobPacketPdf(AppDb db, String projectId, PacketOptions o,
         : pw.Padding(
             padding: const pw.EdgeInsets.only(bottom: 10),
             child: pw.Text('${o.title} · ${numberOf(p)} ${p.s('customer')}', style: const pw.TextStyle(color: _grey, fontSize: 9))),
-    footer: (c) => pw.Align(
-        alignment: pw.Alignment.centerRight,
-        child: pw.Text('Page ${c.pageNumber} of ${c.pagesCount}', style: const pw.TextStyle(color: _grey, fontSize: 9))),
+    footer: o.numberPages
+        ? (c) => pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text('Page ${c.pageNumber} of ${c.pagesCount}', style: const pw.TextStyle(color: _grey, fontSize: 9)))
+        : null,
     build: (c) => body,
   ));
 
-  // ---------------------------------------------------------------- drawings (design PDFs and images)
+  // ---------------------------------------------------------------- drawings & attached PDFs (as pictures)
+  Future<void> addFilePages(Rec f, String caption) async {
+    final name = f.s('name');
+    final isPdf = name.toLowerCase().endsWith('.pdf');
+    if (!isPdf && !_pdfImageOk(name)) return;
+    final bytes = await load(f);
+    if (bytes == null) return;
+    List<Uint8List> pages;
+    try {
+      pages = isPdf ? await rasterize!(bytes) : [bytes];
+    } catch (_) {
+      return; // couldn't render this file; it is still listed in the packet
+    }
+    for (final (i, img) in pages.indexed) {
+      doc.addPage(pw.Page(
+        pageFormat: PdfPageFormat.letter.landscape,
+        margin: const pw.EdgeInsets.all(24),
+        build: (c) => pw.Column(children: [
+          pw.Text('$caption · $name${pages.length > 1 ? ' · page ${i + 1}' : ''}',
+              style: const pw.TextStyle(color: _grey, fontSize: 9)),
+          pw.SizedBox(height: 6),
+          pw.Expanded(child: pw.Center(child: pw.Image(pw.MemoryImage(img), fit: pw.BoxFit.contain))),
+        ]),
+      ));
+    }
+  }
+
   if (o.drawings && design != null) {
     for (final f in db.select("SELECT * FROM files WHERE entity_type='design' AND entity_id=? AND deleted=0 ORDER BY created_at",
         [design.id])) {
-      final name = f.s('name');
-      final isPdf = name.toLowerCase().endsWith('.pdf');
-      if (!isPdf && !_pdfImageOk(name)) continue;
-      final bytes = await load(f);
-      if (bytes == null) continue;
-      List<Uint8List> pages;
-      try {
-        pages = isPdf ? await rasterize(bytes) : [bytes];
-      } catch (_) {
-        continue; // couldn't render this file; it is still listed under Design
-      }
-      for (final (i, img) in pages.indexed) {
-        doc.addPage(pw.Page(
-          pageFormat: PdfPageFormat.letter.landscape,
-          margin: const pw.EdgeInsets.all(24),
-          build: (c) => pw.Column(children: [
-            pw.Text('Design v${design.i('version')} · $name${pages.length > 1 ? ' · page ${i + 1}' : ''}',
-                style: const pw.TextStyle(color: _grey, fontSize: 9)),
-            pw.SizedBox(height: 6),
-            pw.Expanded(child: pw.Center(child: pw.Image(pw.MemoryImage(img), fit: pw.BoxFit.contain))),
-          ]),
-        ));
-      }
+      await addFilePages(f, 'Design v${design.i('version')}');
+    }
+  }
+  if (o.attachedPdfs) {
+    for (final (m, f) in packetMeasurementPdfs(db, projectId)) {
+      await addFilePages(f, 'Measurements: ${m.s('room')}');
     }
   }
 
@@ -380,4 +398,72 @@ Future<Uint8List> jobPacketPdf(AppDb db, String projectId, PacketOptions o,
   }
 
   return doc.save();
+}
+
+/// PDF files attached to the job's measurement sets (oldest first).
+List<(Rec, Rec)> packetMeasurementPdfs(AppDb db, String projectId) => [
+      for (final m in db.select('SELECT * FROM measurements WHERE project_id=? AND deleted=0 ORDER BY created_at', [projectId]))
+        for (final f in db.select("SELECT * FROM files WHERE entity_type='measurement' AND entity_id=? AND deleted=0 ORDER BY created_at",
+            [m.id]))
+          if (f.s('name').toLowerCase().endsWith('.pdf')) (m, f),
+    ];
+
+/// The current design's PDF files.
+List<Rec> packetDesignPdfs(AppDb db, String projectId) {
+  final designs = db.select('SELECT * FROM designs WHERE project_id=? AND deleted=0 ORDER BY version DESC', [projectId]);
+  final d = designs.where((d) => d.s('status') == 'approved').firstOrNull ?? designs.firstOrNull;
+  if (d == null) return const [];
+  return db
+      .select("SELECT * FROM files WHERE entity_type='design' AND entity_id=? AND deleted=0 ORDER BY created_at", [d.id])
+      .where((f) => f.s('name').toLowerCase().endsWith('.pdf'))
+      .toList();
+}
+
+/// Build the packet. With ZPDF, the original drawing and measurement PDFs are merged in as real
+/// PDF pages (sharp at any zoom, text stays searchable) with a bookmark per part and page numbers
+/// across the whole packet. Without it they are added as pictures.
+Future<Uint8List> buildJobPacket(AppDb db, String projectId, PacketOptions o,
+    {required FileLoader load, ZPdf? zpdf, PdfRasterizer? rasterize}) async {
+  if (zpdf == null) return jobPacketPdf(db, projectId, o, load: load, rasterize: rasterize);
+
+  final extras = <(String, Rec)>[
+    if (o.drawings) for (final f in packetDesignPdfs(db, projectId)) ('Drawing', f),
+    if (o.attachedPdfs) for (final (m, f) in packetMeasurementPdfs(db, projectId)) ('Measurements ${m.s('room')}', f),
+  ];
+  final summaryOpts = PacketOptions(
+    title: o.title, prices: o.prices, warnings: o.warnings, selections: o.selections, measurements: o.measurements,
+    photos: o.photos, drawings: false, quote: o.quote, payments: o.payments, notes: o.notes, signoff: o.signoff,
+    attachedPdfs: false, maxPhotos: o.maxPhotos,
+  )..numberPages = false;
+  final summary = await jobPacketPdf(db, projectId, summaryOpts, load: load, rasterize: rasterize);
+
+  final tmp = await Directory.systemTemp.createTemp('cabinet_crm_packet');
+  try {
+    String safe(String s) => s.replaceAll(RegExp(r'[\\/:*?"<>|]+'), '_').trim();
+    // File names become the bookmarks in the merged PDF.
+    final first = File('${tmp.path}${Platform.pathSeparator}${safe(o.title[0] + o.title.substring(1).toLowerCase())}.pdf');
+    await first.writeAsBytes(summary);
+    final inputs = [first.path];
+    var n = 0;
+    for (final (label, f) in extras) {
+      final bytes = await load(f);
+      if (bytes == null) continue;
+      n++;
+      final name = safe('$label - ${f.s('name').replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '')}');
+      // One folder per part keeps names unique while the bookmark stays readable.
+      final dir = Directory('${tmp.path}${Platform.pathSeparator}${n.toString().padLeft(2, '0')}')..createSync();
+      final file = File('${dir.path}${Platform.pathSeparator}$name.pdf');
+      await file.writeAsBytes(bytes);
+      inputs.add(file.path);
+    }
+    final merged = '${tmp.path}${Platform.pathSeparator}merged.pdf';
+    await zpdf.merge(inputs, merged);
+    final numbered = '${tmp.path}${Platform.pathSeparator}numbered.pdf';
+    await zpdf.numberPages(merged, numbered);
+    return await File(numbered).readAsBytes();
+  } finally {
+    try {
+      await tmp.delete(recursive: true);
+    } catch (_) {}
+  }
 }

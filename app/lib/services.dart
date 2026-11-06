@@ -9,6 +9,7 @@ import 'core/device_mode.dart';
 import 'core/files.dart';
 import 'core/logic.dart';
 import 'mail/mail_poller.dart';
+import 'pdf/zpdf.dart';
 import 'sync/discovery.dart';
 import 'sync/hub_server.dart';
 import 'sync/sync_client.dart';
@@ -41,6 +42,15 @@ class Services extends ChangeNotifier {
   /// True for an office workstation (a desktop that connects to the main PC).
   bool get isWorkstation => !isHub && desktop;
 
+  /// ZPDF (PDF-Manager) if installed on this computer: sharper job packets, annotate/sign PDFs.
+  ZPdf? zpdf;
+
+  /// Look for ZPDF again (after installing it, or changing the path in Settings).
+  void detectZpdf() {
+    zpdf = desktop ? ZPdf.detect(override: db.meta('zpdf_path')) : null;
+    notifyListeners();
+  }
+
   /// Set when the data folder is on a network drive (see [looksLikeNetworkPath]).
   String? storageWarning;
 
@@ -64,10 +74,12 @@ class Services extends ChangeNotifier {
         ..storageWarning = warning;
       await s.startHub();
       s.mail!.start();
+      s.detectZpdf();
       return s;
     }
     final client = SyncClient(db, files, discovery: discoverHub);
     final s = Services._(db, files, client: client)..storageWarning = warning;
+    s.detectZpdf();
     final uid = client.userId;
     if (uid != null) s.signIn(uid);
     return s;

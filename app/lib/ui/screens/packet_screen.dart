@@ -52,7 +52,7 @@ class _PacketScreenState extends State<PacketScreen> {
         }
       }
 
-      final bytes = await jobPacketPdf(svc.db, widget.projectId, _o, load: load);
+      final bytes = await buildJobPacket(svc.db, widget.projectId, _o, load: load, zpdf: svc.zpdf);
       if (!mounted) return;
       final p = projectWithCustomer(svc.db, widget.projectId)!;
       final kind = {'customer': 'Job-summary', 'production': 'Production-packet', 'office': 'Job-file'}[_preset]!;
@@ -111,6 +111,7 @@ class _PacketScreenState extends State<PacketScreen> {
         opt('Design drawings (PDF pages and images of the current design)', _o.drawings, (v) => _o.drawings = v),
         opt(_o.prices ? 'Quote' : 'Scope of work (quote lines without prices)', _o.quote, (v) => _o.quote = v),
         if (_o.prices) opt('Payments & balance', _o.payments, (v) => _o.payments = v),
+        opt('Measurement PDFs (e.g. the techs\' measurement sheets)', _o.attachedPdfs, (v) => _o.attachedPdfs = v),
         opt('Site photos (up to ${_o.maxPhotos})', _o.photos, (v) => _o.photos = v),
         opt('Notes (calls, emails, site visits)', _o.notes, (v) => _o.notes = v),
         opt('Customer approval / signature page', _o.signoff, (v) => _o.signoff = v),
@@ -125,6 +126,15 @@ class _PacketScreenState extends State<PacketScreen> {
             label: Text(_busy ? 'Building…' : 'Create packet'),
           ),
         ),
+        const SizedBox(height: 8),
+        if (Services.desktop)
+          WarnBanner(
+              svc.zpdf != null
+                  ? 'ZPDF found: drawings and measurement PDFs are merged in as original pages '
+                      '(sharp when zoomed, text searchable), with bookmarks and page numbers.'
+                  : 'Tip: install ZPDF (PDF-Manager) on this computer and drawings and measurement PDFs are merged in '
+                      'as original pages instead of pictures. See Settings › PDF tools.',
+              serious: false),
         if (!svc.isHub)
           const Padding(
             padding: EdgeInsets.only(top: 8),

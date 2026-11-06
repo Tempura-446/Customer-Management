@@ -104,6 +104,20 @@ Details:
   with the quotes, so field staff never receive them.
 - **Field staff** can only print the production packet.
 
+### Stronger PDFs with ZPDF (optional)
+
+If **ZPDF** (the PDF-Manager toolkit) is installed on a computer, Cabinet CRM finds it and uses it:
+
+- **Sharper job packets.** The original drawing PDFs (e.g. exported from 2020) and the techs' measurement PDFs are
+  merged in as real pages, sharp when zoomed and searchable. The packet gets a bookmark per part and page numbers
+  across the whole file. Without ZPDF those PDFs are added as pictures.
+- **Open in ZPDF.** A pen button on every PDF attached to a job opens it in ZPDF's reader to annotate, sign or edit.
+  If you save it in place, the job shows **Save changes** to keep the new version.
+
+Install it with **Install ZPDF.cmd** from the PDF-Manager repository, then check **Settings → PDF tools (ZPDF)**. Cabinet
+CRM looks in `%LOCALAPPDATA%\PDF Manager\app` and for `pdfm` on the PATH, or you can pick the program there. The
+standalone ZPDF.exe only opens a window, so use the installer version.
+
 ## Staff and roles
 
 | Role | Can do |
