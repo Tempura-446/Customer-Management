@@ -237,14 +237,17 @@ class _MailCard extends StatelessWidget {
 }
 
 /// Pick a job, suggestions first. Returns the project id.
-Future<String?> pickJob(BuildContext context, {List<String> suggested = const []}) => showDialog<String>(
+Future<String?> pickJob(BuildContext context,
+        {List<String> suggested = const [], String title = 'File to which job?'}) =>
+    showDialog<String>(
       context: context,
-      builder: (c) => _JobPicker(suggested: suggested),
+      builder: (c) => _JobPicker(suggested: suggested, title: title),
     );
 
 class _JobPicker extends StatefulWidget {
-  const _JobPicker({required this.suggested});
+  const _JobPicker({required this.suggested, required this.title});
   final List<String> suggested;
+  final String title;
   @override
   State<_JobPicker> createState() => _JobPickerState();
 }
@@ -260,7 +263,7 @@ class _JobPickerState extends State<_JobPicker> {
       return sa != sb ? sa - sb : b.s('updated_at').compareTo(a.s('updated_at'));
     });
     return AlertDialog(
-      title: const Text('File to which job?'),
+      title: Text(widget.title),
       content: SizedBox(
         width: 460,
         height: 420,

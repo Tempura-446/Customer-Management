@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../core/logic.dart';
+import '../../core/orders.dart';
 import '../../mail/mail_ingest.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
 import 'customers_screens.dart';
+import 'backup_screen.dart';
+import 'calendar_screens.dart';
 import 'invoice_screens.dart';
 import 'mail_screens.dart';
 import 'project_screen.dart';
@@ -57,6 +60,7 @@ class DashboardScreen extends StatelessWidget {
           }
           return PageBody(maxWidth: 1400, children: [
             if (svc.storageWarning != null) WarnBanner(svc.storageWarning!),
+            if (svc.isOwner) BackupStatusBanner(backup: svc.backup),
             if (svc.hubError != null) WarnBanner(svc.hubError!),
             if (prices && unmatchedMailCount(db) > 0)
               Card(
@@ -77,12 +81,29 @@ class DashboardScreen extends StatelessWidget {
               _Stat('Next actions', '${actions.length}'),
             ]),
             const SizedBox(height: 12),
+            const MyDayCard(),
+            const SizedBox(height: 12),
             Section(
               title: 'Next actions',
               child: actions.isEmpty
                   ? const Muted('Nothing waiting on you.')
                   : Column(children: [for (final a in actions) _ActionRow(a)]),
             ),
+            if (arrivingSoon(db).isNotEmpty)
+              Section(
+                title: 'Materials arriving this week',
+                child: Column(children: [
+                  for (final o in arrivingSoon(db))
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.local_shipping_outlined),
+                      title: Text('${o.s('expected_on')} · ${poLabel(o)} from ${o.ns('supplier') ?? 'supplier'}'),
+                      subtitle: Text('${o.s('customer')} · ${o.ns('pnum') ?? ''} ${o.s('title')}'),
+                      onTap: () => push(context, ProjectScreen(projectId: o.s('project_id'))),
+                    ),
+                ]),
+              ),
             Text('Pipeline', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             _Pipeline(projects: projects),
@@ -118,6 +139,8 @@ class _ActionRow extends StatelessWidget {
   static const _colors = {
     'overdue': Color(0xFFB02A2A), 'expired': Color(0xFFB02A2A), 'verify': Color(0xFFB02A2A),
     'follow up': Color(0xFF8A5A12), 'invoice': Color(0xFF8A5A12), 'send': Color(0xFF8A5A12),
+    'confirm': Color(0xFF8A5A12), 'mark done': Color(0xFF8A5A12), 'book': Color(0xFF2357B8),
+    'order': Color(0xFF6B46C1),
   };
 
   @override

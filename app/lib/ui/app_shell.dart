@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services.dart';
 import '../sync/sync_client.dart';
+import 'screens/calendar_screens.dart';
 import 'screens/customers_screens.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screens.dart';
@@ -108,6 +109,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       (Icons.dashboard_outlined, 'Dashboard', const DashboardScreen()),
       (Icons.people_outline, 'Customers', const CustomersScreen()),
       (Icons.work_outline, 'Jobs', const ProjectsScreen()),
+      (Icons.calendar_month_outlined, 'Calendar', const CalendarScreen()),
       (Icons.sync, svc.isHub ? 'Devices' : 'Sync', svc.isHub ? const DevicesScreen() : const PhoneSyncScreen()),
       (Icons.settings_outlined, 'Settings', const SettingsScreen()),
     ];

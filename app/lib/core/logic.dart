@@ -11,6 +11,8 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 
 import 'db.dart';
+import 'orders.dart';
+import 'schedule.dart';
 
 // ============================================================================ constants
 
@@ -909,7 +911,7 @@ List<NextAction> nextActions(AppDb db, {bool prices = true}) {
 
   for (final p in db.select("$pj AND p.status='lead' AND NOT EXISTS "
       '(SELECT 1 FROM measurements m WHERE m.project_id=p.id AND m.deleted=0)')) {
-    out.add(pa('measure', p, 'Book / take measurements'));
+    if (upcomingOf(db, p.id, 'measure') == null) out.add(pa('measure', p, 'Book the site measure'));
   }
   for (final p in db.select("$pj AND p.status='measured' AND NOT EXISTS "
       '(SELECT 1 FROM designs d WHERE d.project_id=p.id AND d.deleted=0)')) {
@@ -923,6 +925,8 @@ List<NextAction> nextActions(AppDb db, {bool prices = true}) {
             ? 'Get customer sign-off on measurements before ordering (${ot.short.toLowerCase()} order)'
             : 'Verify measurements on site before ordering'));
   }
+  out.addAll(scheduleNextActions(db));
+  out.addAll(ordersNextActions(db));
   if (!prices) return out;
 
   for (final p in db.select("$pj AND p.status='designing' AND NOT EXISTS "

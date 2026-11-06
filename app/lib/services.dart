@@ -8,6 +8,7 @@ import 'core/db.dart';
 import 'core/device_mode.dart';
 import 'core/files.dart';
 import 'core/logic.dart';
+import 'backup/backup_service.dart';
 import 'mail/mail_poller.dart';
 import 'pdf/zpdf.dart';
 import 'sync/discovery.dart';
@@ -20,7 +21,7 @@ import 'sync/sync_client.dart';
 /// CLIENT = other office workstations, phones and tablets: local copy + sync
 /// with the hub over the office network. See DeviceMode.
 class Services extends ChangeNotifier {
-  Services._(this.db, this.files, {this.hub, this.client, this.advertiser, this.mail});
+  Services._(this.db, this.files, {this.hub, this.client, this.advertiser, this.mail, this.backup});
 
   final AppDb db;
   final FileStore files;
@@ -30,6 +31,9 @@ class Services extends ChangeNotifier {
 
   /// Main office PC only: reads the shared measurement mailbox.
   final MailPoller? mail;
+
+  /// Main office PC only: daily backups.
+  final BackupService? backup;
 
   bool get isHub => db.isHub;
   Rec? user;
@@ -60,6 +64,7 @@ class Services extends ChangeNotifier {
         (hubMode
             ? p.join((await getApplicationDocumentsDirectory()).path, 'Cabinet CRM')
             : (await getApplicationSupportDirectory()).path);
+    if (hubMode) BackupService.applyPendingRestore(root);
     final db = AppDb.open(p.join(root, 'data', 'cabinet_crm.db'), isHub: hubMode);
     final files = FileStore(db, root);
     final warning = looksLikeNetworkPath(root)
@@ -71,10 +76,11 @@ class Services extends ChangeNotifier {
       seedSettings(db);
       migrateStages(db);
       final hub = HubServer(db, files, hubName: db.meta('hub_name') ?? Platform.localHostname);
-      final s = Services._(db, files, hub: hub, advertiser: HubAdvertiser(), mail: MailPoller(db, files))
+      final s = Services._(db, files, hub: hub, advertiser: HubAdvertiser(), mail: MailPoller(db, files), backup: BackupService(db, files))
         ..storageWarning = warning;
       await s.startHub();
       s.mail!.start();
+      s.backup!.start();
       s.detectZpdf();
       return s;
     }

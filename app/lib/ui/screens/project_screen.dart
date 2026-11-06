@@ -5,10 +5,12 @@ import '../../core/logic.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
 import '../widgets/files_panel.dart';
+import 'calendar_screens.dart';
 import 'customers_screens.dart';
 import 'design_screens.dart';
 import 'invoice_screens.dart';
 import 'measurement_screens.dart';
+import 'orders_screens.dart';
 import 'packet_screen.dart';
 import 'projects_screens.dart';
 import 'quote_screens.dart';
@@ -93,6 +95,10 @@ class ProjectScreen extends StatelessWidget {
               }
               return Column(children: rows);
             }),
+            TwoCol(
+              left: ProjectOrdersCard(projectId: projectId),
+              right: ProjectAppointmentsCard(projectId: projectId),
+            ),
             _SelectionsCard(projectId: projectId),
             TwoCol(
               left: _NotesCard(projectId: projectId),

@@ -7,7 +7,9 @@ import '../../core/logic.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
 import '../widgets/files_panel.dart';
+import 'backup_screen.dart';
 import 'mail_screens.dart';
+import 'orders_screens.dart';
 import 'pdf_tools_screen.dart';
 
 const _labels = {
@@ -150,6 +152,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : 'Automatically file measurement emails (PDFs, photos) into jobs'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => push(context, const MailSettingsScreen()),
+            ),
+          ),
+        if (svc.prices)
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: const Icon(Icons.local_shipping_outlined),
+              title: const Text('Suppliers'),
+              subtitle: const Text('Cabinet, door, countertop and hardware suppliers for purchase orders'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => push(context, const SuppliersScreen()),
+            ),
+          ),
+        if (svc.isHub && svc.isOwner && svc.backup != null)
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: const Icon(Icons.backup_outlined),
+              title: const Text('Backups'),
+              subtitle: Text(svc.backup!.enabled && svc.backup!.dir != null
+                  ? 'Daily to ${svc.backup!.dir}'
+                  : 'Not set up: back up the database and job folders daily'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => push(context, BackupScreen(backup: svc.backup!)),
             ),
           ),
         if (Services.desktop)
