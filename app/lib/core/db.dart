@@ -216,7 +216,7 @@ class AppDb extends ChangeNotifier {
 
   @override
   void dispose() {
-    raw.dispose();
+    raw.close();
     super.dispose();
   }
 }

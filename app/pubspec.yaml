@@ -53,6 +53,7 @@ dependencies:
   url_launcher: ^6.3.3
   network_info_plus: ^8.2.2
   shared_preferences: ^2.5.6
+  open_filex: ^5.0.0
 
 dev_dependencies:
   flutter_test:

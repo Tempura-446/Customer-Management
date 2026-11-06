@@ -94,8 +94,11 @@ class HubServer {
   // ------------------------------------------------------------------ pairing
 
   /// Owner creates a one-time code for a user (shown as a QR code). Valid 15 minutes.
+  /// Codes use letters/digits that can't be confused (no 0/O, 1/I/L) and are shown as ABCD-EFGH.
   String createPairingCode(String userId) {
-    final code = randomToken(9);
+    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    final rnd = Random.secure();
+    final code = List.generate(8, (_) => alphabet[rnd.nextInt(alphabet.length)]).join();
     db.raw.execute('DELETE FROM pairing_codes WHERE expires_at < ?', [DateTime.now().toUtc().toIso8601String()]);
     db.raw.execute('INSERT INTO pairing_codes(code, user_id, expires_at) VALUES (?,?,?)',
         [code, userId, DateTime.now().toUtc().add(const Duration(minutes: 15)).toIso8601String()]);
@@ -117,11 +120,21 @@ class HubServer {
   Response _hello(Request req) =>
       _json({'app': 'cabinetcrm', 'hub': hubId, 'name': hubName, 'v': protocolVersion});
 
+  static String normalizeCode(String c) => c.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+  static String displayCode(String c) => c.length == 8 ? '${c.substring(0, 4)}-${c.substring(4)}' : c;
+
+  final _failedPairs = <DateTime>[];
+
   Future<Response> _pair(Request req) async {
+    // Brute-force guard: max 10 wrong codes per 15 minutes.
+    final cutoff = DateTime.now().subtract(const Duration(minutes: 15));
+    _failedPairs.removeWhere((t) => t.isBefore(cutoff));
+    if (_failedPairs.length >= 10) throw _Http(429, 'Too many wrong codes. Wait 15 minutes and create a new code.');
     final body = jsonDecode(await req.readAsString()) as Map<String, dynamic>;
-    final code = body['code'] as String? ?? '';
+    final code = normalizeCode(body['code'] as String? ?? '');
     final row = db.raw.select('SELECT * FROM pairing_codes WHERE code=?', [code]).firstOrNull;
     if (row == null || (row['expires_at'] as String).compareTo(DateTime.now().toUtc().toIso8601String()) < 0) {
+      _failedPairs.add(DateTime.now());
       throw _Http(403, 'Pairing code is invalid or expired. Create a new one on the PC.');
     }
     final user = db.get('users', row['user_id'] as String);

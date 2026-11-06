@@ -10,8 +10,8 @@ import 'logic.dart';
 /// Stores attachment bytes on this device.
 ///
 /// HUB (Windows): human-readable folders you can open in Explorer / 2020:
-///   <root>/Projects/J-2026-001_Smith/designs/smith_v2.kit
-/// PHONE: content-addressed blobs (<root>/blobs/<sha256>.<ext>), downloaded on demand.
+///   `<root>/Projects/J-2026-001_Smith/designs/smith_v2.kit`
+/// PHONE: content-addressed blobs (`<root>/blobs/<sha256>.<ext>`), downloaded on demand.
 class FileStore {
   FileStore(this.db, this.root);
   final AppDb db;
@@ -81,7 +81,8 @@ class FileStore {
     String? entityId,
   }) {
     final sha = sha256Of(bytes);
-    if (!hasBlob(sha)) {
+    // PC: every job folder gets its own copy so the folders stay complete.
+    if (db.isHub || !hasBlob(sha)) {
       _writeBlob(sha, bytes, _targetPath(projectId, category, name, sha), uploaded: db.isHub);
     }
     return db.tx(() {

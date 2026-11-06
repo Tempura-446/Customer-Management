@@ -1,0 +1,102 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: "3.47.9"
+
+defaults:
+  run:
+    working-directory: app
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath CabinetCRM-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CabinetCRM-Windows
+          path: app/CabinetCRM-Windows.zip
+
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      # Signed with the debug key for now (fine for sideloading on your own phones).
+      # For Google Play, add a keystore as secrets and configure signingConfigs.
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CabinetCRM-Android
+          path: app/build/app/outputs/flutter-apk/app-release.apk
+
+  ios:
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      # Unsigned build: proves the iOS app compiles. It cannot be installed on a phone as-is.
+      - run: flutter build ios --release --no-codesign
+      - name: Zip
+        run: cd build/ios/iphoneos && zip -qr ../../../CabinetCRM-iOS-unsigned.zip Runner.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CabinetCRM-iOS-unsigned
+          path: app/CabinetCRM-iOS-unsigned.zip
+
+      # ---- TestFlight (later, needs an Apple Developer account, $99/yr) ----
+      # Add these repository secrets, then replace the unsigned build with
+      # `flutter build ipa --release --export-options-plist=ios/ExportOptions.plist`
+      # and upload with `xcrun altool` / fastlane:
+      #   APPLE_TEAM_ID                 - from developer.apple.com > Membership
+      #   IOS_DIST_CERT_P12_BASE64      - Apple Distribution certificate (.p12), base64
+      #   IOS_DIST_CERT_PASSWORD        - password of that .p12
+      #   IOS_PROVISION_PROFILE_BASE64  - App Store provisioning profile for the bundle id, base64
+      #   APP_STORE_CONNECT_KEY_ID      - App Store Connect API key id
+      #   APP_STORE_CONNECT_ISSUER_ID   - API key issuer id
+      #   APP_STORE_CONNECT_KEY_P8      - the .p8 key contents

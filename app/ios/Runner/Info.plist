@@ -2,12 +2,27 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Take site photos and scan the pairing QR code shown on the office PC.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Attach photos of the job site, sketches and customer drawings.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Sync jobs, measurements and photos with the Cabinet CRM app on your office PC over Wi-Fi.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_cabinetcrm._tcp</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Cabinet Crm</string>
+	<string>Cabinet CRM</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
