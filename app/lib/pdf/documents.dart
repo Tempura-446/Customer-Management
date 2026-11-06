@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../core/branding.dart';
 import '../core/db.dart';
 import '../core/logic.dart';
 import '../core/orders.dart';
@@ -22,13 +23,30 @@ part 'po_pdf.dart';
 const _grey = PdfColor.fromInt(0xFF666666);
 const _light = PdfColor.fromInt(0xFFF3F3F3);
 
-pw.Widget _letterhead(Map<String, String> s, String title, List<(String, String)> meta) => pw.Container(
+pw.Widget _letterhead(Map<String, String> s, String title, List<(String, String)> meta) {
+  final logo = businessLogo(s);
+  pw.Widget? logoWidget;
+  if (logo != null) {
+    try {
+      logoWidget = pw.Container(
+        margin: const pw.EdgeInsets.only(right: 14),
+        constraints: const pw.BoxConstraints(maxWidth: 170, maxHeight: 64),
+        child: pw.Image(pw.MemoryImage(logo), fit: pw.BoxFit.contain),
+      );
+    } catch (_) {
+      logoWidget = null; // unreadable logo: print without it
+    }
+  }
+  return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 10),
       decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 2.5))),
       child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        ?logoWidget,
         pw.Expanded(
           child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text(s['business_name'] ?? '', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+            // The logo may already spell out the name (Settings: "My logo already shows our name").
+            if (logoWidget == null || s['logo_has_name'] != '1')
+              pw.Text(s['business_name'] ?? '', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
             if ((s['business_address'] ?? '').isNotEmpty) pw.Text(s['business_address']!, style: const pw.TextStyle(color: _grey)),
             pw.Text([s['business_phone'], s['business_email']].where((x) => (x ?? '').isNotEmpty).join('   '),
                 style: const pw.TextStyle(color: _grey)),
@@ -45,6 +63,7 @@ pw.Widget _letterhead(Map<String, String> s, String title, List<(String, String)
         ]),
       ]),
     );
+}
 
 pw.Widget _billTo(Rec p) {
   pw.Widget block(String label, List<String> lines) => pw.Expanded(

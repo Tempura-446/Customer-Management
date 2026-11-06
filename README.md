@@ -275,6 +275,13 @@ Details:
 - **Windows Firewall:** the installer allows the app on **private** networks only. Make sure the office network is set to
   *Private* on the main PC (Settings → Network & internet → your network → Private network).
 
+## Your logo on everything printed
+
+**Settings → Business → Choose logo** (PNG with a transparent background looks best). The logo is stored with the shared
+settings, so every PC and phone has it. It prints at the top of every document: quotes, invoices, job packets
+(customer, production and office) and purchase orders. It also appears on the sign-in screen and in the app's side
+bar. If your logo already spells out the business name, tick **My logo already shows our name**.
+
 ## Getting the apps
 
 - **Version releases (recommended).** Bump `version:` in `app/pubspec.yaml` (e.g. `1.1.0+2`) and push a tag `v1.1.0`.

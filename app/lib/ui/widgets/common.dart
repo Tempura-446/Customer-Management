@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/branding.dart';
 import '../../core/logic.dart';
 
 final _money = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
@@ -449,5 +450,25 @@ class OrderTypePicker extends StatelessWidget {
       if (orderTypeOf(value) case final ot?)
         Padding(padding: const EdgeInsets.only(top: 6), child: Muted(ot.hint, size: 12)),
     ]);
+  }
+}
+
+// ============================================================================ logo
+
+/// The business logo from Settings (or a cabinet icon when none is set).
+class BusinessLogo extends StatelessWidget {
+  const BusinessLogo({super.key, required this.settings, this.height = 40, this.maxWidth = 160});
+  final Map<String, String> settings;
+  final double height, maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final logo = businessLogo(settings);
+    if (logo == null) return Icon(Icons.kitchen, size: height);
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: height, maxWidth: maxWidth),
+      child: Image.memory(logo, fit: BoxFit.contain, gaplessPlayback: true,
+          errorBuilder: (_, _, _) => Icon(Icons.kitchen, size: height)),
+    );
   }
 }

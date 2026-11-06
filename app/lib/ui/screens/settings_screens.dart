@@ -1,6 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:file_picker/file_picker.dart';
+
+import '../../core/branding.dart';
 import '../../core/db.dart';
 import '../../core/device_mode.dart';
 import '../../core/logic.dart';
@@ -107,8 +112,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(title: const Text('Settings')),
       body: PageBody(maxWidth: 900, children: [
         Section(
-          title: 'Business (printed on quotes & invoices)',
+          title: 'Business (printed on every document)',
           child: Column(children: [
+            const _LogoPicker(),
+            const SizedBox(height: 12),
             _field('business_name', editable: canEdit),
             _field('business_address', editable: canEdit),
             row(['business_phone', 'business_email']),
@@ -443,6 +450,74 @@ class _UserDialogState extends State<_UserDialog> {
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         FilledButton(onPressed: _save, child: const Text('Save')),
       ],
+    );
+  }
+}
+
+/// Business logo: printed on quotes, invoices, job packets and purchase orders, shown in the app.
+class _LogoPicker extends StatelessWidget {
+  const _LogoPicker();
+
+  @override
+  Widget build(BuildContext context) {
+    final svc = context.svc;
+    return DbBuilder(
+      db: svc.db,
+      builder: (context) {
+        final s = settings(svc.db);
+        final has = businessLogo(s) != null;
+        final canEdit = svc.isOwner || svc.prices;
+        return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Container(
+            width: 200,
+            height: 80,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: has
+                ? BusinessLogo(settings: s, height: 64, maxWidth: 184)
+                : const Center(child: Muted('No logo yet', size: 12)),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Logo', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Muted('Printed at the top of quotes, invoices, job packets and purchase orders. '
+                  'PNG with a transparent background looks best.', size: 12),
+              if (canEdit)
+                Wrap(spacing: 8, children: [
+                  TextButton.icon(
+                    onPressed: () async {
+                      final picked = await FilePicker.pickFiles(dialogTitle: 'Choose your logo', type: FileType.image);
+                      if (picked.isEmpty || !context.mounted) return;
+                      final f = picked.first;
+                      await attempt(context, () async {
+                        final bytes = f.path == null ? null : await File(f.path!).readAsBytes();
+                        if (bytes == null) throw Exception("Couldn't read that file.");
+                        setBusinessLogo(svc.db, bytes);
+                      }, success: 'Logo saved: it now prints on every document');
+                    },
+                    icon: const Icon(Icons.image_outlined),
+                    label: Text(has ? 'Change logo' : 'Choose logo'),
+                  ),
+                  if (has)
+                    TextButton(onPressed: () => removeBusinessLogo(svc.db), child: const Text('Remove')),
+                ]),
+              if (has)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  value: s['logo_has_name'] == '1',
+                  onChanged: canEdit ? (v) => setSetting(svc.db, 'logo_has_name', v == true ? '1' : '0') : null,
+                  title: const Text("My logo already shows our name (don't print it twice)"),
+                ),
+            ]),
+          ),
+        ]);
+      },
     );
   }
 }

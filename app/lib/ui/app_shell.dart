@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../core/logic.dart';
 import '../services.dart';
 import '../sync/sync_client.dart';
 import 'screens/calendar_screens.dart';
@@ -125,7 +126,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             leading: Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Column(children: [
-                const Icon(Icons.kitchen, size: 32),
+                BusinessLogo(settings: settings(svc.db), height: 36, maxWidth: 72),
                 const SizedBox(height: 4),
                 Text(svc.user?.s('name') ?? '', style: const TextStyle(fontSize: 11)),
               ]),

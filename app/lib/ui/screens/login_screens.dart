@@ -172,7 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 640),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Icon(Icons.kitchen, size: 48),
+              Center(child: BusinessLogo(settings: settings(context.db), height: 72, maxWidth: 280)),
               const SizedBox(height: 8),
               Text(business, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 4),
