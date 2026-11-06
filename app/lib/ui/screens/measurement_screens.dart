@@ -137,21 +137,39 @@ class _MeasurementFormScreenState extends State<MeasurementFormScreen> {
           ]),
         ),
         const SizedBox(height: 4),
-        SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(value: 'onsite', icon: Icon(Icons.straighten), label: Text('On site')),
-            ButtonSegment(value: 'customer', icon: Icon(Icons.person_outline), label: Text('From customer')),
-          ],
-          selected: {_source},
-          onSelectionChanged: (s) => setState(() => _source = s.first),
+        Text('Where did these measurements come from?', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 6),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final src in measurementSources)
+            ChoiceChip(
+              avatar: Icon(sourceIcon(src.key), size: 18, color: _source == src.key ? Colors.white : Color(src.color)),
+              label: Text(src.label),
+              selected: _source == src.key,
+              showCheckmark: false,
+              selectedColor: Color(src.color),
+              labelStyle: TextStyle(
+                  color: _source == src.key ? Colors.white : Color(src.color), fontWeight: FontWeight.w600),
+              side: BorderSide(color: Color(src.color).withValues(alpha: 0.6)),
+              backgroundColor: Color(src.color).withValues(alpha: 0.08),
+              onSelected: (_) => setState(() => _source = src.key),
+            ),
+        ]),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: sourceColor(_source).withValues(alpha: 0.08),
+            border: Border(left: BorderSide(color: sourceColor(_source), width: 4)),
+          ),
+          child: Text(sourceOf(_source).hint),
         ),
-        if (_source == 'customer')
+        if (sourceOf(_source).needsVerify)
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
             value: _verified,
             onChanged: (v) => setState(() => _verified = v ?? false),
             title: const Text('Verified on site'),
-            subtitle: const Text('Customer numbers stay flagged until someone checks them on site.'),
+            subtitle: const Text('Until then these stay flagged, and the job shows "verify before ordering".'),
           ),
         const SizedBox(height: 12),
         Row(children: [
@@ -279,11 +297,9 @@ class MeasurementScreen extends StatelessWidget {
               child: Crumbs('${p.s('customer')} › ${numberOf(p)} · ${p.s('title')}'),
             ),
             Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              Text('${m.s('source') == 'onsite' ? 'Measured on site' : 'Supplied by customer'}'
-                  '${m.ns('taken_by') != null ? ' by ${m.s('taken_by')}' : ''} · ${m.ns('taken_on') ?? fmtDate(m.s('created_at'))}'),
-              StatusChip(m.b('verified') ? 'verified' : 'not verified',
-                  label: m.b('verified') ? 'verified ${m.s('verified_on')}' : 'not verified'),
-              if (!m.b('verified'))
+              SourceChip(m.s('source'), verified: m.b('verified'), verifiedOn: m.ns('verified_on'), long: true),
+              Text('${m.ns('taken_by') != null ? 'by ${m.s('taken_by')} · ' : ''}${m.ns('taken_on') ?? fmtDate(m.s('created_at'))}'),
+              if (!m.b('verified') && sourceOf(m.s('source')).needsVerify)
                 FilledButton.tonalIcon(
                     onPressed: () => verifyMeasurement(db, measurementId),
                     icon: const Icon(Icons.check),
@@ -294,6 +310,8 @@ class MeasurementScreen extends StatelessWidget {
                   label: const Text('Start design from these')),
             ]),
             const SizedBox(height: 12),
+            if (sourceOf(m.s('source')).risk >= 2 && !m.b('verified'))
+              const WarnBanner('Guessed from photos: use for a ballpark design and price only. Measure on site before ordering.'),
             TwoCol(
               left: Section(
                 title: 'Dimensions',

@@ -42,6 +42,24 @@ or browse the folder in Explorer.
 The **Dashboard › Next actions** list shows what's waiting on you: jobs to measure, designs to start, designs to quote,
 quotes to follow up or that have expired, deposits to invoice, measurements to verify, draft invoices and overdue invoices.
 
+## Measurement sources (colour-coded)
+
+Every measurement set records where the numbers came from. The colour shows on the job page, the measurement, and the
+design and quote it feeds:
+
+| Source | Colour | Ready to order? |
+|---|---|---|
+| On-site measure (our team) | green | yes |
+| Customer measurement | amber | verify on site first |
+| Guessed from customer picture | red | ballpark only: the job shows a strong warning |
+| From drawings / plans | blue | verify on site first |
+| From contractor / builder | purple | verify on site first |
+| From a previous job / old file | teal | verify on site first |
+| Other (see notes) | grey | verify on site first |
+
+Anything that isn't our own on-site measure shows **not verified** until someone ticks **Verified on site** (or clicks
+**Mark verified on site**). Approved jobs with unverified numbers appear in **Next actions → Verify**.
+
 ## Staff and roles
 
 | Role | Can do |

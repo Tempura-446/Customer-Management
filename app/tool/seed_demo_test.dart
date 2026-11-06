@@ -34,7 +34,7 @@ void main() {
     }
 
     String measure(String pid, {String source = 'onsite'}) => saveMeasurement(db,
-        projectId: pid, room: 'Kitchen', source: source, takenBy: 'Alex', takenOn: today(),
+        projectId: pid, room: {'photo': 'Pantry', 'plans': 'Mudroom'}[source] ?? 'Kitchen', source: source, takenBy: 'Alex', takenOn: today(),
         notes: 'Wall A out of square by 1/4". Soffit over sink.',
         lines: [
           MeasureLine('Wall A length', '144', 'in'),
@@ -68,6 +68,8 @@ void main() {
     measure(pid, source: 'customer');
     pid = job('Smith Family', '555-410-2020', '4 Elm St', 'Kitchen');
     design(pid, measure(pid), 'L-shape w/ island');
+    measure(pid, source: 'photo');
+    measure(pid, source: 'plans');
     pid = job('Priya Patel', '555-777-8080', '19 Birch Ln', 'Kitchen + pantry');
     quote(pid, design(pid, measure(pid), 'U-shape'));
     pid = job("Tom O'Neil", '555-123-4567', '301 Lake Dr', 'Kitchen');

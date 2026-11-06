@@ -71,6 +71,38 @@ const measurementPresets = <String, List<String>>{
   ],
 };
 
+/// Where a set of measurements came from. Colour-coded everywhere they appear.
+/// Anything other than our own on-site measure must be verified on site before ordering.
+class MeasureSource {
+  const MeasureSource(this.key, this.label, this.short, this.color, this.hint, {this.needsVerify = true, this.risk = 1});
+  final String key, label, short, hint;
+  final int color; // ARGB
+  final bool needsVerify;
+
+  /// 0 = reliable, 1 = check before ordering, 2 = rough estimate.
+  final int risk;
+}
+
+const measurementSources = <MeasureSource>[
+  MeasureSource('onsite', 'On-site measure (our team)', 'On site', 0xFF1F7A45,
+      'Measured on site by our tech or designer. Good for ordering.', needsVerify: false, risk: 0),
+  MeasureSource('customer', 'Customer measurement', 'Customer', 0xFFB7791F,
+      'The customer measured and sent the numbers. Fine to design and quote; verify before ordering.'),
+  MeasureSource('photo', 'Guessed from customer picture', 'From photo', 0xFFC53030,
+      'Estimated from photos (counting tiles, comparing to a known size). Rough: for a ballpark only.', risk: 2),
+  MeasureSource('plans', 'From drawings / plans', 'From plans', 0xFF2357B8,
+      "Taken from architect, builder or floor plans. Built walls often differ; verify on site."),
+  MeasureSource('contractor', 'From contractor / builder', 'Contractor', 0xFF6B46C1,
+      'Supplied by the contractor or builder on the job. Verify before ordering.'),
+  MeasureSource('previous', 'From a previous job / old file', 'Previous job', 0xFF2C7A7B,
+      'Re-used from earlier work at this address. Things may have changed; verify on site.'),
+  MeasureSource('other', 'Other (see notes)', 'Other', 0xFF4A5568,
+      'Any other source. Explain it in the notes.'),
+];
+
+MeasureSource sourceOf(String? key) =>
+    measurementSources.firstWhere((s) => s.key == key, orElse: () => measurementSources[1]);
+
 const defaultSettings = {
   'business_name': 'Your Cabinet Co.',
   'business_address': '',
@@ -300,8 +332,8 @@ String saveMeasurement(AppDb db,
     String? notes,
     required List<MeasureLine> lines}) {
   return db.tx(() {
-    final src = source == 'customer' ? 'customer' : 'onsite';
-    final isVerified = src == 'onsite' || verified;
+    final src = measurementSources.any((s) => s.key == source) ? source : 'customer';
+    final isVerified = !sourceOf(src).needsVerify || verified;
     final old = id == null ? null : db.get('measurements', id);
     final v = <String, Object?>{
       'room': room.trim().isEmpty ? 'Room' : room.trim(),
@@ -315,7 +347,7 @@ String saveMeasurement(AppDb db,
     String mid;
     if (old == null) {
       mid = db.insert('measurements', {'project_id': projectId, ...v});
-      log(db, projectId, 'Measurements added: ${v['room']} (${src == 'onsite' ? 'on site' : 'from customer'})');
+      log(db, projectId, 'Measurements added: ${v['room']} (${sourceOf(src).label.toLowerCase()})');
       advanceStatus(db, projectId, 'measured');
     } else {
       mid = old.id;
@@ -669,9 +701,17 @@ List<Warning> projectWarnings(AppDb db, String projectId, {bool prices = true}) 
       : <Rec>[];
   final acc = prices ? acceptedQuote(db, projectId) : null;
 
-  final unverified = meas.where((m) => m.s('source') == 'customer' && !m.b('verified')).length;
-  if (unverified > 0 && (designs.isNotEmpty || acc != null)) {
-    w.add(Warning(true, '$unverified customer-supplied measurement set(s) not verified on site. Verify before ordering.'));
+  final unverified = meas.where((m) => sourceOf(m.s('source')).needsVerify && !m.b('verified')).toList();
+  final guessed = unverified.where((m) => sourceOf(m.s('source')).risk >= 2).toList();
+  if (guessed.isNotEmpty) {
+    w.add(Warning(true,
+        '${guessed.map((m) => m.s('room')).join(', ')}: measurements were guessed from photos. Good for a ballpark only: '
+        'measure on site before final design and ordering.'));
+  }
+  final others = unverified.where((m) => sourceOf(m.s('source')).risk < 2).toList();
+  if (others.isNotEmpty && (designs.isNotEmpty || acc != null)) {
+    final kinds = others.map((m) => sourceOf(m.s('source')).short.toLowerCase()).toSet().join(', ');
+    w.add(Warning(true, '${others.length} measurement set(s) not verified on site ($kinds). Verify before ordering.'));
   }
   if (designs.isNotEmpty && meas.isEmpty) w.add(Warning(true, 'Design exists with no measurements on file.'));
   for (final d in designs) {
@@ -727,8 +767,8 @@ List<NextAction> nextActions(AppDb db, {bool prices = true}) {
     out.add(pa('design', p, 'Start 2020 design'));
   }
   for (final p in db.select("$pj AND p.status IN ('approved','invoiced') AND EXISTS "
-      "(SELECT 1 FROM measurements m WHERE m.project_id=p.id AND m.deleted=0 AND m.source='customer' AND m.verified=0)")) {
-    out.add(pa('verify', p, 'Verify customer measurements on site before ordering'));
+      "(SELECT 1 FROM measurements m WHERE m.project_id=p.id AND m.deleted=0 AND m.source<>'onsite' AND m.verified=0)")) {
+    out.add(pa('verify', p, 'Verify measurements on site before ordering'));
   }
   if (!prices) return out;
 

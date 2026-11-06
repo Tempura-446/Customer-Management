@@ -194,12 +194,19 @@ class KeyValues extends StatelessWidget {
 
 /// Tappable record row used inside sections.
 class ItemTile extends StatelessWidget {
-  const ItemTile({super.key, required this.title, this.subtitle, this.trailing, this.onTap, this.dim = false});
+  const ItemTile(
+      {super.key, required this.title, this.subtitle, this.trailing, this.onTap, this.dim = false, this.accent, this.below});
   final String title;
   final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
   final bool dim;
+
+  /// Coloured stripe on the left (e.g. measurement source colour).
+  final Color? accent;
+
+  /// Extra widget under the subtitle (e.g. a badge).
+  final Widget? below;
   @override
   Widget build(BuildContext context) => Opacity(
         opacity: dim ? 0.55 : 1,
@@ -209,12 +216,23 @@ class ItemTile extends StatelessWidget {
           shape: RoundedRectangleBorder(
               side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
               borderRadius: BorderRadius.circular(8)),
-          child: ListTile(
-            dense: true,
-            title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: subtitle == null ? null : Text(subtitle!),
-            trailing: trailing,
-            onTap: onTap,
+          clipBehavior: Clip.antiAlias,
+          child: Container(
+            decoration: accent == null
+                ? null
+                : BoxDecoration(border: Border(left: BorderSide(color: accent!, width: 5))),
+            child: ListTile(
+              dense: true,
+              title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: subtitle == null && below == null
+                  ? null
+                  : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if (subtitle != null) Text(subtitle!),
+                      if (below != null) Padding(padding: const EdgeInsets.only(top: 4), child: below!),
+                    ]),
+              trailing: trailing,
+              onTap: onTap,
+            ),
           ),
         ),
       );
@@ -288,4 +306,77 @@ class Crumbs extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Muted(text, size: 12));
+}
+
+// ============================================================================ measurement sources
+
+const _sourceIcons = <String, IconData>{
+  'onsite': Icons.straighten,
+  'customer': Icons.person_outline,
+  'photo': Icons.photo_camera_outlined,
+  'plans': Icons.architecture,
+  'contractor': Icons.engineering_outlined,
+  'previous': Icons.history,
+  'other': Icons.help_outline,
+};
+
+IconData sourceIcon(String? key) => _sourceIcons[key] ?? Icons.help_outline;
+Color sourceColor(String? key) => Color(sourceOf(key).color);
+
+/// Colour-coded badge: where the measurements came from, and whether they've been verified on site.
+class SourceChip extends StatelessWidget {
+  const SourceChip(this.source, {super.key, this.verified = false, this.verifiedOn, this.long = false});
+  final String? source;
+  final bool verified;
+  final String? verifiedOn;
+  final bool long;
+
+  @override
+  Widget build(BuildContext context) {
+    final src = sourceOf(source);
+    final c = Color(src.color);
+    final checked = src.needsVerify && verified;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.12),
+        border: Border.all(color: c.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(sourceIcon(src.key), size: 14, color: c),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(long ? src.label : src.short,
+              overflow: TextOverflow.ellipsis, style: TextStyle(color: c, fontSize: 11, fontWeight: FontWeight.w700)),
+        ),
+        if (src.needsVerify) ...[
+          const SizedBox(width: 6),
+          Icon(checked ? Icons.verified : Icons.error_outline, size: 14,
+              color: checked ? const Color(0xFF1F7A45) : const Color(0xFFB02A2A)),
+          if (long || !checked)
+            Padding(
+              padding: const EdgeInsets.only(left: 2),
+              child: Text(checked ? 'verified${verifiedOn != null ? ' $verifiedOn' : ''}' : 'not verified',
+                  style: TextStyle(
+                      fontSize: 11, color: checked ? const Color(0xFF1F7A45) : const Color(0xFFB02A2A))),
+            ),
+        ],
+      ]),
+    );
+  }
+}
+
+/// Small legend of all measurement sources and their colours.
+class SourceLegend extends StatelessWidget {
+  const SourceLegend({super.key});
+  @override
+  Widget build(BuildContext context) => Wrap(spacing: 10, runSpacing: 4, children: [
+        for (final s in measurementSources)
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 10, height: 10, decoration: BoxDecoration(color: Color(s.color), shape: BoxShape.circle)),
+            const SizedBox(width: 4),
+            Text(s.short, style: const TextStyle(fontSize: 11)),
+          ]),
+      ]);
 }

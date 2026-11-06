@@ -179,10 +179,10 @@ class _MeasurementsCard extends StatelessWidget {
         for (final m in list)
           ItemTile(
             title: m.s('room'),
-            subtitle: '${m.s('source') == 'onsite' ? 'On site' : 'From customer'} · '
-                '${m.ns('taken_on') ?? fmtDate(m.s('created_at'))} · '
+            accent: sourceColor(m.s('source')),
+            below: SourceChip(m.s('source'), verified: m.b('verified')),
+            subtitle: '${m.ns('taken_on') ?? fmtDate(m.s('created_at'))} · '
                 '${[if (m.i('n') > 0) '${m.i('n')} dims', if (m.i('nf') > 0) '${m.i('nf')} file${m.i('nf') == 1 ? '' : 's'}'].join(', ').ifEmpty('no dims')}',
-            trailing: StatusChip(m.b('verified') ? 'verified' : 'not verified'),
             onTap: () => push(context, MeasurementScreen(measurementId: m.id)),
           ),
       ]),

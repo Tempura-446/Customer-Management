@@ -96,8 +96,16 @@ class _DesignFormScreenState extends State<DesignFormScreen> {
               for (final m in meas)
                 DropdownMenuItem(
                     value: m.id,
-                    child: Text('${m.s('room')} · ${m.ns('taken_on') ?? fmtDate(m.s('created_at'))}'
-                        '${m.b('verified') ? '' : ' (unverified)'}')),
+                    child: Row(children: [
+                      Icon(sourceIcon(m.s('source')), size: 16, color: sourceColor(m.s('source'))),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text('${m.s('room')} · ${m.ns('taken_on') ?? fmtDate(m.s('created_at'))} · '
+                            '${sourceOf(m.s('source')).short}'
+                            '${!sourceOf(m.s('source')).needsVerify || m.b('verified') ? '' : ' (not verified)'}',
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ])),
             ],
             onChanged: (v) => setState(() => _measurementId = v),
           ),
@@ -204,7 +212,8 @@ class DesignScreen extends StatelessWidget {
                   else
                     ItemTile(
                       title: m.s('room'),
-                      trailing: StatusChip(m.b('verified') ? 'verified' : 'not verified'),
+                      accent: sourceColor(m.s('source')),
+                      below: SourceChip(m.s('source'), verified: m.b('verified')),
                       onTap: () => push(context, MeasurementScreen(measurementId: m.id)),
                     ),
                   if (svc.prices) ...[

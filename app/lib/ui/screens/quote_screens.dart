@@ -498,9 +498,8 @@ class QuoteScreen extends StatelessWidget {
               ),
               ItemTile(
                 title: m == null ? 'Measurements: -' : 'Measurements: ${m.s('room')}',
-                trailing: m == null
-                    ? null
-                    : StatusChip(m.b('verified') ? 'verified' : 'not verified'),
+                accent: m == null ? null : sourceColor(m.s('source')),
+                below: m == null ? null : SourceChip(m.s('source'), verified: m.b('verified')),
                 onTap: m == null ? null : () => push(context, MeasurementScreen(measurementId: m.id)),
               ),
               const SizedBox(height: 8),

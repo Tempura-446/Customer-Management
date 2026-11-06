@@ -93,4 +93,28 @@ void main() {
     expect(db.get('measurements', mid), isNull);
     expect(customersList(db), isEmpty);
   });
+
+  test('measurement sources: colour-coded, all but on-site need verifying, photo guesses warn hardest', () {
+    final cid = saveCustomer(db, {'name': 'A'});
+    final pid = createProject(db, customerId: cid, title: 'Kitchen');
+    expect(measurementSources.map((s) => s.key).toSet(), hasLength(measurementSources.length));
+    final onsite = saveMeasurement(db, projectId: pid, room: 'Kitchen', source: 'onsite', lines: []);
+    expect(db.get('measurements', onsite)!.b('verified'), isTrue);
+    final photo = saveMeasurement(db, projectId: pid, room: 'Pantry', source: 'photo', lines: []);
+    final m = db.get('measurements', photo)!;
+    expect(m.s('source'), 'photo');
+    expect(m.b('verified'), isFalse);
+    // A photo guess warns even before there is a design.
+    expect(projectWarnings(db, pid).single.message, contains('guessed from photos'));
+    saveMeasurement(db, projectId: pid, room: 'Laundry', source: 'plans', lines: []);
+    saveDesign(db, projectId: pid, title: 'v1');
+    expect(projectWarnings(db, pid).any((w) => w.message.contains('from plans')), isTrue);
+    // Approved job with unverified plans/photo numbers -> "verify" next action.
+    setStatus(db, pid, 'approved');
+    expect(nextActions(db).any((a) => a.kind == 'verify' && a.projectId == pid), isTrue);
+    // Unknown source values (e.g. from a newer app version) are kept safe as "needs verifying".
+    final odd = saveMeasurement(db, projectId: pid, room: 'X', source: 'nonsense', lines: []);
+    expect(db.get('measurements', odd)!.s('source'), 'customer');
+    expect(sourceOf('nonsense').needsVerify, isTrue);
+  });
 }
