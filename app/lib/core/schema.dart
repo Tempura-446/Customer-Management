@@ -1,0 +1,132 @@
+/// Database schema.
+///
+/// Organisation: Customer -> Project (job) -> Measurements -> Designs (2020 files)
+///   -> Quotes (+ lines) -> Invoices -> Payments, plus Notes and Files on the project.
+///
+/// Every SYNCED table has the same bookkeeping columns so the phone and the
+/// Windows hub can exchange changes:
+///   id          UUID (created on any device, never collides)
+///   created_at / updated_at   ISO-8601 UTC timestamps (last write wins)
+///   updated_by  user id
+///   deleted     soft delete (tombstone) so deletions sync too
+///   seq         hub change counter (hub: assigned on every write; phone: last seen)
+///   dirty       phone only: 1 = changed here, not yet pushed to the hub
+library;
+
+const syncCols = '''
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT,
+  deleted INTEGER NOT NULL DEFAULT 0,
+  seq INTEGER NOT NULL DEFAULT 0,
+  dirty INTEGER NOT NULL DEFAULT 0''';
+
+/// Synced tables, in dependency order (parents first).
+const syncTables = <String, String>{
+  'users': '''
+    name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'office',   -- owner | office | field
+    pin_hash TEXT,                          -- never sent to phones
+    active INTEGER NOT NULL DEFAULT 1''',
+  'settings': '''
+    key TEXT NOT NULL UNIQUE,
+    value TEXT''',
+  'customers': '''
+    name TEXT NOT NULL,
+    phone TEXT, email TEXT, address TEXT, source TEXT, notes TEXT''',
+  'projects': '''
+    number TEXT UNIQUE,                     -- J-2026-001, assigned by the hub
+    customer_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    site_address TEXT,
+    status TEXT NOT NULL DEFAULT 'lead' ''',
+  'measurements': '''
+    project_id TEXT NOT NULL,
+    room TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'onsite',  -- onsite | customer
+    taken_by TEXT, taken_on TEXT,
+    verified INTEGER NOT NULL DEFAULT 0, verified_on TEXT,
+    notes TEXT''',
+  'measurement_items': '''
+    measurement_id TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    label TEXT NOT NULL, value TEXT, unit TEXT''',
+  'designs': '''
+    project_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    title TEXT,
+    measurement_id TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',   -- draft | presented | approved | superseded
+    notes TEXT''',
+  'quotes': '''
+    project_id TEXT NOT NULL,
+    number TEXT,                            -- Q-2026-001, shared by all revisions
+    revision INTEGER NOT NULL DEFAULT 1,
+    design_id TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',   -- draft | sent | accepted | declined | superseded
+    tax_rate REAL NOT NULL DEFAULT 0,
+    discount REAL NOT NULL DEFAULT 0,
+    deposit_pct REAL NOT NULL DEFAULT 50,
+    valid_until TEXT, notes TEXT, terms TEXT, sent_on TEXT, decided_on TEXT''',
+  'quote_items': '''
+    quote_id TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    category TEXT, description TEXT NOT NULL,
+    qty REAL NOT NULL DEFAULT 1, unit_price REAL NOT NULL DEFAULT 0''',
+  'invoices': '''
+    project_id TEXT NOT NULL,
+    quote_id TEXT NOT NULL,
+    number TEXT UNIQUE,                     -- INV-2026-001
+    kind TEXT NOT NULL DEFAULT 'deposit',   -- deposit | progress | final
+    amount REAL NOT NULL,
+    issued_on TEXT, due_on TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',   -- draft | sent | paid | void
+    notes TEXT''',
+  'payments': '''
+    invoice_id TEXT NOT NULL,
+    paid_on TEXT NOT NULL, amount REAL NOT NULL, method TEXT, reference TEXT''',
+  'notes': '''
+    project_id TEXT, customer_id TEXT,
+    kind TEXT NOT NULL DEFAULT 'note',      -- note | call | email | site | system
+    body TEXT NOT NULL''',
+  'files': '''
+    project_id TEXT NOT NULL,
+    entity_type TEXT, entity_id TEXT,       -- measurement | design | quote | invoice | null
+    category TEXT NOT NULL,                 -- measurements | designs | quotes | invoices | photos | other
+    name TEXT NOT NULL,
+    size INTEGER, sha256 TEXT NOT NULL, mime TEXT''',
+};
+
+/// Tables a "field" user (installer / measurer) never receives or sends:
+/// prices stay on the office side.
+const pricedTables = {'quotes', 'quote_items', 'invoices', 'payments'};
+
+/// Local-only tables (never synced).
+const localSchema = '''
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+-- Where a file's bytes live on THIS device.
+CREATE TABLE IF NOT EXISTS blobs (
+  sha256 TEXT PRIMARY KEY, path TEXT NOT NULL, uploaded INTEGER NOT NULL DEFAULT 1);
+-- Hub only: paired phones / tablets.
+CREATE TABLE IF NOT EXISTS devices (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT, token_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL, last_sync TEXT, revoked INTEGER NOT NULL DEFAULT 0);
+-- Hub only: one-time pairing codes shown as QR.
+CREATE TABLE IF NOT EXISTS pairing_codes (
+  code TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at TEXT NOT NULL);
+''';
+
+String createStatements() {
+  final b = StringBuffer(localSchema);
+  syncTables.forEach((t, cols) {
+    b.writeln('CREATE TABLE IF NOT EXISTS $t ($syncCols,\n$cols\n);');
+    b.writeln('CREATE INDEX IF NOT EXISTS ix_${t}_seq ON $t(seq);');
+    b.writeln('CREATE INDEX IF NOT EXISTS ix_${t}_dirty ON $t(dirty);');
+  });
+  b.writeln('CREATE INDEX IF NOT EXISTS ix_projects_customer ON projects(customer_id);');
+  for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files']) {
+    b.writeln('CREATE INDEX IF NOT EXISTS ix_${t}_project ON $t(project_id);');
+  }
+  return b.toString();
+}
