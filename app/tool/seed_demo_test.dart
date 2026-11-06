@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:cabinet_crm/core/db.dart';
 import 'package:cabinet_crm/core/files.dart';
 import 'package:cabinet_crm/core/logic.dart';
+import 'package:cabinet_crm/mail/mail_ingest.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -75,6 +76,17 @@ void main() {
     final inv = createInvoice(db, q, kind: 'deposit', amount: suggestedInvoiceAmount(db, q, 'deposit'));
     addPayment(db, inv, amount: 5000, method: 'Cheque', reference: '#1042');
     addNote(db, pid, 'Customer wants delivery after the 15th.', kind: 'call');
+
+    // Two measurement emails from the shared mailbox: one matches a job, one doesn't.
+    MailEnvelope email(String subject, String id) => MailEnvelope(
+          messageId: id, subject: subject, from: 'Sam Installer <sam@mapleoak.example>', date: DateTime.now(),
+          text: 'Measured today. Ceiling 96 1/2. Plumbing centre 34 from left wall.',
+          attachments: [
+            MailAttachment('Site measure.pdf', Uint8List.fromList('%PDF-1.4 demo $id'.codeUnits)),
+            MailAttachment('IMG_2041.jpg', Uint8List.fromList(List.filled(60 * 1024, id.length)), inline: true),
+          ]);
+    ingestEmail(db, files, email('RE: 12 Oak Avenue - laundry measurements', '<demo1>'));
+    ingestEmail(db, files, email('Measurements 230 Cedar Crescent', '<demo2>'));
     db.dispose();
   });
 }

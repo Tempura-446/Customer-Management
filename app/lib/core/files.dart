@@ -155,6 +155,35 @@ class FileStore {
     });
   }
 
+  /// Store bytes that don't belong to a job yet (e.g. email attachments waiting in the inbox).
+  /// Main PC: `<root>/Email inbox/<folder>/<name>`. Returns the checksum.
+  String storeLoose(Uint8List bytes, String name, String folder) {
+    final sha = sha256Of(bytes);
+    if (hasBlob(sha)) return sha;
+    final target = db.isHub
+        ? p.join(root, 'Email inbox', _safeName(folder), _safeName(name))
+        : p.join(root, 'blobs', sha.substring(0, 16), _safeName(name));
+    _writeBlob(sha, bytes, target, uploaded: db.isHub);
+    return sha;
+  }
+
+  /// Main PC: make sure a file attached to a job also sits in that job's folder
+  /// (it may have arrived via the email inbox or from another device).
+  void copyIntoProject(String fileId) {
+    if (!db.isHub) return;
+    final f = db.get('files', fileId);
+    if (f == null) return;
+    final src = localPath(f.s('sha256'));
+    if (src == null) return;
+    final folder = projectFolder(f.s('project_id'));
+    if (p.isWithin(folder, src)) return;
+    final target = _targetPath(f.s('project_id'), f.s('category'), f.s('name'), f.s('sha256'));
+    File(target).parent.createSync(recursive: true);
+    File(src).copySync(target);
+    db.raw.execute('UPDATE blobs SET path=?, mtime=? WHERE sha256=?',
+        [target, File(target).lastModifiedSync().millisecondsSinceEpoch, f.s('sha256')]);
+  }
+
   /// Bytes received over sync (hub: upload from phone; phone: download from hub).
   void storeIncoming(String sha, Uint8List bytes) {
     if (sha256Of(bytes) != sha) throw const FormatException('File checksum mismatch');

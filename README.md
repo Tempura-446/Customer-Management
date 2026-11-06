@@ -81,6 +81,33 @@ computers keep the previous version. For a real design change, prefer a new desi
 
 A workstation is connected as one staff member, and everyone using it acts as that person.
 
+## Measurement emails (shared Gmail mailbox)
+
+If your techs email measurements and photos (PDF) to a shared mailbox, with the site address in the subject,
+the main office PC can file them for you:
+
+1. Main PC: **Settings → Measurement email**. Enter the shared Gmail address and an **app password**
+   (myaccount.google.com → Security → 2-Step Verification on → App passwords). Click **Test & save**.
+2. Every few minutes the main PC reads new emails. It only looks; nothing in the mailbox is marked, moved or deleted.
+3. When the subject matches the address of exactly one job, the email becomes a **measurement record on that job**:
+   - the PDFs and photos are attached and stored in the job folder (`…\Projects\J-2026-014_Smith\measurements`)
+   - the email text becomes the notes, and the sender is "taken by"
+   - the job moves to *Measured*
+
+   Matching tolerates "RE:/Fwd:", "Street" vs "St", unit numbers, and the city on either side.
+4. Anything else lands in the **Email inbox** (envelope icon on the Dashboard), on every office computer:
+   - **File to job…**: choose the job. Likely matches are offered first.
+   - **New customer & job**: creates both from the address in the subject, then files the email.
+   - **Ignore**.
+   - Filed by mistake? Use **Wrong job? Move**.
+
+Two situations always wait for a person: two different customers with a job at the same address, and a subject
+with no street number. Emails without a PDF or photo are skipped, and so are email-signature logos.
+
+Tip for the techs: start the subject with the address, e.g. `123 Main St – kitchen`, one job per email.
+
+The app password is stored in Windows Credential Manager on the main PC, not in the database or backups.
+
 ## How phone ↔ PC sync works
 
 1. On the PC: **Devices → Add a phone or computer**, then pick the person. A QR code appears; it works once and expires after 15 minutes.

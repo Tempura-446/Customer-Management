@@ -54,6 +54,8 @@ dependencies:
   network_info_plus: ^8.2.2
   shared_preferences: ^2.5.6
   open_filex: ^5.0.0
+  enough_mail: ^3.0.0
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:

@@ -196,6 +196,7 @@ class HubServer {
   ({int accepted, Map<String, List<String>> rejected}) mergePush(Map<String, dynamic> changes, {required String role}) {
     var accepted = 0;
     final rejected = <String, List<String>>{};
+    final filedFromDevice = <String>[];
     db.tx(() {
       for (final table in syncTables.keys) {
         final rows = (changes[table] as List?) ?? const [];
@@ -224,10 +225,16 @@ class HubServer {
           }
           db.assignNumber(table, row);
           db.putRaw(table, row);
+          if (table == 'files') filedFromDevice.add(id);
           accepted++;
         }
       }
     });
+    // A file filed on another device that is already on this PC (e.g. an inbox email
+    // attachment) gets copied into its job folder.
+    for (final id in filedFromDevice) {
+      files.copyIntoProject(id);
+    }
     return (accepted: accepted, rejected: rejected);
   }
 
@@ -260,7 +267,10 @@ class HubServer {
 
   Future<Response> _getBlob(Request req, String sha) async {
     final a = _auth(req);
-    final f = db.one('SELECT * FROM files WHERE sha256=? AND deleted=0 LIMIT 1', [sha]);
+    final f = db.one('SELECT * FROM files WHERE sha256=? AND deleted=0 LIMIT 1', [sha]) ??
+        // Attachments of measurement emails still waiting in the inbox.
+        db.one("SELECT id, subject AS name, 'measurements' AS category FROM mail_inbox WHERE attachments LIKE ? AND deleted=0",
+            ['%$sha%']);
     if (f == null || !rowVisible('files', f.m, a.user.s('role'))) throw _Http(404, 'No such file');
     final path = files.localPath(sha);
     if (path == null) throw _Http(404, 'File not on the PC yet');

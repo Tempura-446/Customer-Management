@@ -7,6 +7,7 @@ import '../../core/logic.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
 import '../widgets/files_panel.dart';
+import 'mail_screens.dart';
 
 const _labels = {
   'business_name': 'Business name',
@@ -135,6 +136,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: const Text('People who use the PC and phones, their roles and PINs'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => push(context, const UsersScreen()),
+            ),
+          ),
+        if (svc.isHub && svc.isOwner && svc.mail != null)
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: const Icon(Icons.alternate_email),
+              title: const Text('Measurement email'),
+              subtitle: Text(svc.mail!.enabled
+                  ? 'Reading ${svc.mail!.user} every ${svc.mail!.pollMinutes} min'
+                  : 'Automatically file measurement emails (PDFs, photos) into jobs'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => push(context, const MailSettingsScreen()),
+            ),
+          ),
+        if (svc.prices)
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: const Icon(Icons.mail_outline),
+              title: const Text('Email inbox'),
+              subtitle: const Text('Measurement emails waiting to be filed, and recently filed ones'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => push(context, const MailInboxScreen()),
             ),
           ),
         if (svc.isHub)

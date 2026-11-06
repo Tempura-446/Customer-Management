@@ -8,6 +8,7 @@ import 'core/db.dart';
 import 'core/device_mode.dart';
 import 'core/files.dart';
 import 'core/logic.dart';
+import 'mail/mail_poller.dart';
 import 'sync/discovery.dart';
 import 'sync/hub_server.dart';
 import 'sync/sync_client.dart';
@@ -18,13 +19,16 @@ import 'sync/sync_client.dart';
 /// CLIENT = other office workstations, phones and tablets: local copy + sync
 /// with the hub over the office network. See DeviceMode.
 class Services extends ChangeNotifier {
-  Services._(this.db, this.files, {this.hub, this.client, this.advertiser});
+  Services._(this.db, this.files, {this.hub, this.client, this.advertiser, this.mail});
 
   final AppDb db;
   final FileStore files;
   final HubServer? hub;
   final SyncClient? client;
   final HubAdvertiser? advertiser;
+
+  /// Main office PC only: reads the shared measurement mailbox.
+  final MailPoller? mail;
 
   bool get isHub => db.isHub;
   Rec? user;
@@ -56,8 +60,10 @@ class Services extends ChangeNotifier {
     if (hubMode) {
       seedSettings(db);
       final hub = HubServer(db, files, hubName: db.meta('hub_name') ?? Platform.localHostname);
-      final s = Services._(db, files, hub: hub, advertiser: HubAdvertiser())..storageWarning = warning;
+      final s = Services._(db, files, hub: hub, advertiser: HubAdvertiser(), mail: MailPoller(db, files))
+        ..storageWarning = warning;
       await s.startHub();
+      s.mail!.start();
       return s;
     }
     final client = SyncClient(db, files, discovery: discoverHub);

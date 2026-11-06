@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../core/logic.dart';
+import '../../mail/mail_ingest.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
 import 'customers_screens.dart';
 import 'invoice_screens.dart';
+import 'mail_screens.dart';
 import 'project_screen.dart';
 import 'quote_screens.dart';
 
@@ -18,6 +20,18 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(settings(svc.db)['business_name'] ?? 'Dashboard'),
         actions: [
+          if (svc.prices)
+            DbBuilder(
+              db: svc.db,
+              builder: (context) {
+                final n = unmatchedMailCount(svc.db);
+                return IconButton(
+                  tooltip: 'Email inbox',
+                  icon: Badge(isLabelVisible: n > 0, label: Text('$n'), child: const Icon(Icons.mail_outline)),
+                  onPressed: () => push(context, const MailInboxScreen()),
+                );
+              },
+            ),
           IconButton(
             tooltip: 'New customer',
             icon: const Icon(Icons.person_add_alt),
@@ -44,6 +58,18 @@ class DashboardScreen extends StatelessWidget {
           return PageBody(maxWidth: 1400, children: [
             if (svc.storageWarning != null) WarnBanner(svc.storageWarning!),
             if (svc.hubError != null) WarnBanner(svc.hubError!),
+            if (prices && unmatchedMailCount(db) > 0)
+              Card(
+                color: const Color(0xFFFDF3E1),
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: const Icon(Icons.mark_email_unread_outlined),
+                  title: Text('${unmatchedMailCount(db)} measurement email(s) need filing'),
+                  subtitle: const Text("The subject didn't match exactly one job address."),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => push(context, const MailInboxScreen()),
+                ),
+              ),
             Wrap(spacing: 12, runSpacing: 12, children: [
               _Stat('Active jobs', '${projects.length}'),
               if (prices) _Stat('Quotes out', fmtMoney(quotesOut)),

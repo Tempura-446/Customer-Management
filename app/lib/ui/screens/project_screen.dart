@@ -163,7 +163,8 @@ class _MeasurementsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = context.db;
-    final list = db.select('''SELECT m.*, (SELECT COUNT(*) FROM measurement_items i WHERE i.measurement_id=m.id AND i.deleted=0) n
+    final list = db.select('''SELECT m.*, (SELECT COUNT(*) FROM measurement_items i WHERE i.measurement_id=m.id AND i.deleted=0) n,
+                                (SELECT COUNT(*) FROM files f WHERE f.entity_type='measurement' AND f.entity_id=m.id AND f.deleted=0) nf
                               FROM measurements m WHERE m.project_id=? AND m.deleted=0 ORDER BY m.created_at DESC''',
         [projectId]);
     return Section(
@@ -179,7 +180,8 @@ class _MeasurementsCard extends StatelessWidget {
           ItemTile(
             title: m.s('room'),
             subtitle: '${m.s('source') == 'onsite' ? 'On site' : 'From customer'} · '
-                '${m.ns('taken_on') ?? fmtDate(m.s('created_at'))} · ${m.i('n')} dims',
+                '${m.ns('taken_on') ?? fmtDate(m.s('created_at'))} · '
+                '${[if (m.i('n') > 0) '${m.i('n')} dims', if (m.i('nf') > 0) '${m.i('nf')} file${m.i('nf') == 1 ? '' : 's'}'].join(', ').ifEmpty('no dims')}',
             trailing: StatusChip(m.b('verified') ? 'verified' : 'not verified'),
             onTap: () => push(context, MeasurementScreen(measurementId: m.id)),
           ),
@@ -401,4 +403,8 @@ class _NotesCardState extends State<_NotesCard> {
       ]),
     );
   }
+}
+
+extension on String {
+  String ifEmpty(String other) => isEmpty ? other : this;
 }

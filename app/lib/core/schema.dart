@@ -90,6 +90,15 @@ const syncTables = <String, String>{
     project_id TEXT, customer_id TEXT,
     kind TEXT NOT NULL DEFAULT 'note',      -- note | call | email | site | system
     body TEXT NOT NULL''',
+  // Measurement emails read from the shared mailbox (by the main office PC).
+  'mail_inbox': '''
+    message_id TEXT NOT NULL UNIQUE,
+    subject TEXT, sender TEXT, received_at TEXT,
+    body TEXT,
+    attachments TEXT,                       -- JSON [{name, sha256, size, mime}]
+    status TEXT NOT NULL DEFAULT 'unmatched', -- filed | unmatched | ignored
+    project_id TEXT, measurement_id TEXT,
+    note TEXT                               -- why it wasn't filed / how it was matched''',
   'files': '''
     project_id TEXT NOT NULL,
     entity_type TEXT, entity_id TEXT,       -- measurement | design | quote | invoice | null

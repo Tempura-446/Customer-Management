@@ -161,7 +161,12 @@ class _FileRow extends StatelessWidget {
       leading: isImg && local != null
           ? ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.file(File(local), width: 40, height: 40, fit: BoxFit.cover, cacheWidth: 120))
+              child: Image.file(File(local),
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.cover,
+                  cacheWidth: 120,
+                  errorBuilder: (_, _, _) => const SizedBox(width: 40, height: 40, child: Icon(Icons.image_outlined))))
           : Icon(_icon(f.s('name')), size: 28),
       title: Text(f.s('name'), overflow: TextOverflow.ellipsis),
       subtitle: edited
