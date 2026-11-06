@@ -49,6 +49,9 @@ class AppDb extends ChangeNotifier {
     const added = [
       ('blobs', 'mtime', 'INTEGER'),
       ('projects', 'order_type', 'TEXT'),
+      ('projects', 'qb_list_id', 'TEXT'),
+      ('projects', 'qb_full_name', 'TEXT'),
+      ('customers', 'qb_list_id', 'TEXT'),
     ];
     for (final (table, column, type) in added) {
       final cols = raw.select('PRAGMA table_info($table)').map((r) => r['name']).toSet();
@@ -195,7 +198,7 @@ class AppDb extends ChangeNotifier {
 
   // ------------------------------------------------------------------ numbering (hub only)
 
-  static const numberPrefix = {'projects': 'J', 'quotes': 'Q', 'invoices': 'INV'};
+  static const numberPrefix = {'projects': 'J', 'quotes': 'Q', 'invoices': 'INV', 'purchase_orders': 'PO'};
 
   /// Give new jobs / quotes / invoices their next sequential number.
   /// Phones create them with number = NULL; the hub fills it in on sync.

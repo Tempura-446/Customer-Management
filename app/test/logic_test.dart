@@ -65,9 +65,11 @@ void main() {
 
     addPayment(db, i1, amount: 3333.50);
     expect(db.get('invoices', i1)!.s('status'), 'paid');
-    expect(db.get('projects', pid)!.s('status'), 'invoiced');
+    expect(db.get('projects', pid)!.s('status'), 'approved', reason: 'payments no longer drive production stages');
     verifyMeasurement(db, mid);
     addPayment(db, i2, amount: 3333.50);
+    expect(db.get('projects', pid)!.s('status'), 'approved', reason: 'paid in full, but not installed yet');
+    markCompleted(db, pid);
     expect(db.get('projects', pid)!.s('status'), 'paid');
     expect(projectWarnings(db, pid), isEmpty);
   });
@@ -145,5 +147,20 @@ void main() {
 
     setOrderType(db, pid, null);
     expect(projectWarnings(db, pid).any((w) => w.message.contains('Order type not set')), isTrue);
+  });
+
+  test('stages: legacy Invoiced reads as Approved; completed label follows the order type', () {
+    final cid = saveCustomer(db, {'name': 'Old'});
+    final pid = createProject(db, customerId: cid, title: 'K');
+    db.update('projects', pid, {'status': 'invoiced'});
+    expect(stageLabel('invoiced'), 'Approved');
+    migrateStages(db);
+    expect(db.get('projects', pid)!.s('status'), 'approved');
+    expect(completedLabel('pickup'), 'Picked up');
+    expect(completedLabel('shipping'), 'Delivered');
+    expect(completedLabel('install'), 'Installed');
+    markCompleted(db, pid);
+    expect(db.get('projects', pid)!.s('status'), 'completed');
+    expect(activeStages, contains('completed'));
   });
 }

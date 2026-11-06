@@ -24,15 +24,50 @@ const stages = [
   Stage('measured', 'Measured', 'Ready to design'),
   Stage('designing', 'Designing', 'Design in 2020, then quote'),
   Stage('quoted', 'Quoted', 'Waiting on customer'),
-  Stage('approved', 'Approved', 'Collect deposit'),
-  Stage('invoiced', 'Invoiced', 'Order, install, collect'),
+  Stage('approved', 'Approved', 'Deposit, then order materials'),
+  Stage('ordered', 'Ordered', 'Waiting on suppliers'),
+  Stage('received', 'Received', 'Book install / delivery / pickup'),
+  Stage('completed', 'Installed', 'Installed, delivered or picked up'),
   Stage('paid', 'Paid', 'Paid in full'),
   Stage('closed', 'Closed', 'Done'),
   Stage('lost', 'Lost', 'Did not proceed'),
 ];
 final stageKeys = stages.map((s) => s.key).toList();
-final activeStages = stageKeys.sublist(0, 6);
-String stageLabel(String k) => stages.firstWhere((s) => s.key == k, orElse: () => Stage(k, k, '')).label;
+
+/// Stages shown on the dashboard pipeline (open work).
+final activeStages = stageKeys.sublist(0, stageKeys.indexOf('completed') + 1);
+
+/// Older versions had an "Invoiced" stage between Approved and Paid; it now reads as Approved.
+String normalizeStage(String k) => k == 'invoiced' ? 'approved' : k;
+
+String stageLabel(String k) =>
+    stages.firstWhere((s) => s.key == normalizeStage(k), orElse: () => Stage(k, k, '')).label;
+
+/// "Installed" reads as "Delivered" / "Picked up" for those order types.
+String completedLabel(String? orderType) => switch (orderType) {
+      'pickup' => 'Picked up',
+      'shipping' => 'Delivered',
+      _ => 'Installed',
+    };
+
+/// Jobs at or past [stage] (closed/lost excluded).
+bool atLeast(String status, String stage) {
+  final s = normalizeStage(status);
+  if (s == 'closed' || s == 'lost') return false;
+  return stageKeys.indexOf(s) >= stageKeys.indexOf(stage);
+}
+
+/// Older databases: move jobs from the retired "Invoiced" stage to Approved (main PC only).
+void migrateStages(AppDb db) {
+  if (!db.isHub) return;
+  final rows = db.select("SELECT id FROM projects WHERE status='invoiced'");
+  if (rows.isEmpty) return;
+  db.tx(() {
+    for (final r in rows) {
+      db.update('projects', r.id, {'status': 'approved'});
+    }
+  });
+}
 
 const roles = {
   'owner': 'Owner (everything + users & devices)',
@@ -285,9 +320,23 @@ void setStatus(AppDb db, String projectId, String status, [String? reason]) {
 void advanceStatus(AppDb db, String projectId, String status, [String? reason]) {
   final p = db.get('projects', projectId);
   if (p == null) return;
-  final cur = p.s('status');
+  final cur = normalizeStage(p.s('status'));
   if (cur == 'closed' || cur == 'lost') return;
   if (stageKeys.indexOf(status) > stageKeys.indexOf(cur)) setStatus(db, projectId, status, reason);
+}
+
+/// Mark the job installed / delivered / picked up (also called when the install appointment is done).
+void markCompleted(AppDb db, String projectId, {String? reason}) {
+  final p = db.get('projects', projectId);
+  if (p == null) return;
+  db.tx(() {
+    advanceStatus(db, projectId, 'completed', reason ?? completedLabel(p.ns('order_type')).toLowerCase());
+    // Already fully paid (Cabinet CRM invoices)? Then it is done.
+    final acc = acceptedQuote(db, projectId);
+    if (acc != null && quoteBilling(db, acc.id).total > 0 && quoteBilling(db, acc.id).outstanding <= 0.005) {
+      advanceStatus(db, projectId, 'paid', 'balance collected');
+    }
+  });
 }
 
 // ============================================================================ customers / projects
@@ -710,7 +759,6 @@ void sendInvoice(AppDb db, String iid) {
   db.tx(() {
     db.update('invoices', iid, {'status': 'sent', 'issued_on': today()});
     log(db, i.s('project_id'), 'Invoice ${numberOf(i)} sent');
-    advanceStatus(db, i.s('project_id'), 'invoiced');
   });
 }
 
@@ -732,7 +780,6 @@ void addPayment(AppDb db, String iid, {required double amount, String? paidOn, S
       'invoice_id': iid, 'paid_on': paidOn ?? today(), 'amount': money(amount), 'method': method, 'reference': reference,
     });
     log(db, i.s('project_id'), 'Payment \$${amount.toStringAsFixed(2)} received on ${numberOf(i)}', kind: 'money');
-    advanceStatus(db, i.s('project_id'), 'invoiced');
     refreshInvoiceStatus(db, iid);
   });
 }
@@ -754,7 +801,9 @@ void refreshInvoiceStatus(AppDb db, String iid) {
   } else if (i.s('status') == 'paid') {
     db.update('invoices', iid, {'status': 'sent'});
   }
-  if (quoteBilling(db, i.s('quote_id')).outstanding <= 0.005) {
+  // Paid in full only counts as "Paid" once the work is done.
+  final p = db.get('projects', i.s('project_id'));
+  if (quoteBilling(db, i.s('quote_id')).outstanding <= 0.005 && p != null && atLeast(p.s('status'), 'completed')) {
     advanceStatus(db, i.s('project_id'), 'paid', 'balance collected');
   }
 }
@@ -866,7 +915,7 @@ List<NextAction> nextActions(AppDb db, {bool prices = true}) {
       '(SELECT 1 FROM designs d WHERE d.project_id=p.id AND d.deleted=0)')) {
     out.add(pa('design', p, 'Start 2020 design'));
   }
-  for (final p in db.select("$pj AND p.status IN ('approved','invoiced') AND EXISTS "
+  for (final p in db.select("$pj AND p.status IN ('approved','invoiced','ordered','received') AND EXISTS "
       "(SELECT 1 FROM measurements m WHERE m.project_id=p.id AND m.deleted=0 AND m.source<>'onsite' AND m.verified=0)")) {
     final ot = orderTypeOf(p.ns('order_type'));
     out.add(pa('verify', p,
@@ -893,7 +942,7 @@ List<NextAction> nextActions(AppDb db, {bool prices = true}) {
           ref, q.s('project_id'), quoteId: q.id));
     }
   }
-  for (final p in db.select("$pj AND p.status IN ('approved','invoiced')")) {
+  for (final p in db.select("$pj AND p.status IN ('approved','invoiced','ordered','received')")) {
     final acc = acceptedQuote(db, p.id);
     if (acc != null &&
         quoteBilling(db, acc.id).uninvoiced > 0.005 &&

@@ -34,14 +34,17 @@ const syncTables = <String, String>{
     value TEXT''',
   'customers': '''
     name TEXT NOT NULL,
-    phone TEXT, email TEXT, address TEXT, source TEXT, notes TEXT''',
+    phone TEXT, email TEXT, address TEXT, source TEXT, notes TEXT,
+    qb_list_id TEXT                         -- QuickBooks customer ListID once linked''',
   'projects': '''
     number TEXT UNIQUE,                     -- J-2026-001, assigned by the hub
     customer_id TEXT NOT NULL,
     title TEXT NOT NULL,
     site_address TEXT,
     status TEXT NOT NULL DEFAULT 'lead',
-    order_type TEXT                         -- pickup | shipping | install (null = not decided yet)''',
+    order_type TEXT,                        -- pickup | shipping | install (null = not decided yet)
+    qb_list_id TEXT,                        -- QuickBooks job (Customer:Job) ListID once linked
+    qb_full_name TEXT''',
   'measurements': '''
     project_id TEXT NOT NULL,
     room TEXT NOT NULL,
@@ -99,6 +102,50 @@ const syncTables = <String, String>{
     project_id TEXT, customer_id TEXT,
     kind TEXT NOT NULL DEFAULT 'note',      -- note | call | email | site | system
     body TEXT NOT NULL''',
+  // Site measures, deliveries, pickups, installs, assigned to staff.
+  'appointments': '''
+    project_id TEXT NOT NULL,
+    kind TEXT NOT NULL,                     -- measure | delivery | pickup | install | service | other
+    starts_at TEXT NOT NULL,                -- local time, yyyy-MM-ddTHH:mm
+    duration_min INTEGER NOT NULL DEFAULT 60,
+    assigned_to TEXT,                       -- user id
+    status TEXT NOT NULL DEFAULT 'scheduled', -- scheduled | done | cancelled
+    confirmed INTEGER NOT NULL DEFAULT 0,   -- customer confirmed the time
+    notes TEXT''',
+  'suppliers': '''
+    name TEXT NOT NULL,
+    kind TEXT,                              -- cabinets | countertops | hardware | other
+    contact TEXT, phone TEXT, email TEXT, address TEXT, account_no TEXT,
+    lead_days INTEGER,                      -- usual days from order to delivery
+    notes TEXT''',
+  'purchase_orders': '''
+    project_id TEXT NOT NULL,
+    supplier_id TEXT,
+    number TEXT UNIQUE,                     -- PO-2026-001, assigned by the main PC
+    supplier_ref TEXT,                      -- supplier's order / confirmation number
+    status TEXT NOT NULL DEFAULT 'draft',   -- draft | ordered | confirmed | received | cancelled
+    ordered_on TEXT, expected_on TEXT, received_on TEXT,
+    deliver_to TEXT,                        -- shop | site
+    notes TEXT''',
+  'po_items': '''
+    po_id TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    description TEXT NOT NULL,
+    qty REAL NOT NULL DEFAULT 1,
+    received_qty REAL NOT NULL DEFAULT 0,
+    notes TEXT''',
+  // Estimates made in QuickBooks, read by the main PC through the Web Connector.
+  'qb_estimates': '''
+    project_id TEXT, customer_id TEXT,
+    qb_txn_id TEXT NOT NULL UNIQUE,
+    ref_number TEXT, txn_date TEXT,
+    subtotal REAL, tax REAL, total REAL,
+    is_active INTEGER NOT NULL DEFAULT 1,   -- QuickBooks "active" (not closed)
+    accepted INTEGER NOT NULL DEFAULT 0,    -- turned into a sales order / invoice in QuickBooks
+    memo TEXT,
+    lines TEXT,                             -- JSON [{item, desc, qty, rate, amount}]
+    qb_customer TEXT,                       -- QuickBooks Customer:Job full name
+    time_modified TEXT''',
   // Measurement emails read from the shared mailbox (by the main office PC).
   'mail_inbox': '''
     message_id TEXT NOT NULL UNIQUE,
@@ -118,7 +165,7 @@ const syncTables = <String, String>{
 
 /// Tables a "field" user (installer / measurer) never receives or sends:
 /// prices stay on the office side.
-const pricedTables = {'quotes', 'quote_items', 'invoices', 'payments'};
+const pricedTables = {'quotes', 'quote_items', 'invoices', 'payments', 'qb_estimates'};
 
 /// Local-only tables (never synced).
 const localSchema = '''
@@ -144,7 +191,8 @@ String createStatements() {
     b.writeln('CREATE INDEX IF NOT EXISTS ix_${t}_dirty ON $t(dirty);');
   });
   b.writeln('CREATE INDEX IF NOT EXISTS ix_projects_customer ON projects(customer_id);');
-  for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files', 'selections']) {
+  for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files', 'selections',
+      'appointments', 'purchase_orders', 'qb_estimates']) {
     b.writeln('CREATE INDEX IF NOT EXISTS ix_${t}_project ON $t(project_id);');
   }
   return b.toString();

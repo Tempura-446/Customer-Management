@@ -68,6 +68,7 @@ class StatusChip extends StatelessWidget {
     switch (s) {
       case 'accepted':
       case 'paid':
+      case 'completed':
       case 'approved':
       case 'verified':
         return (const Color(0xFFE5F6EC), const Color(0xFF1F7A45));
@@ -79,6 +80,8 @@ class StatusChip extends StatelessWidget {
       case 'presented':
       case 'quoted':
       case 'invoiced':
+      case 'ordered':
+      case 'received':
         return (const Color(0xFFE8EFFC), const Color(0xFF2357B8));
       case 'declined':
       case 'void':

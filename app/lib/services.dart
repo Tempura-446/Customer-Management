@@ -69,6 +69,7 @@ class Services extends ChangeNotifier {
         : null;
     if (hubMode) {
       seedSettings(db);
+      migrateStages(db);
       final hub = HubServer(db, files, hubName: db.meta('hub_name') ?? Platform.localHostname);
       final s = Services._(db, files, hub: hub, advertiser: HubAdvertiser(), mail: MailPoller(db, files))
         ..storageWarning = warning;

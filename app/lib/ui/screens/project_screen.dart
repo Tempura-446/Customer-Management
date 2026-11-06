@@ -70,7 +70,7 @@ class ProjectScreen extends StatelessWidget {
           ),
           body: PageBody(maxWidth: 1400, children: [
             _Header(p: p),
-            _Stepper(status: p.s('status'), projectId: projectId),
+            _Stepper(status: normalizeStage(p.s('status')), projectId: projectId),
             for (final w in projectWarnings(db, projectId, prices: prices)) WarnBanner(w.message, serious: w.serious),
             const SizedBox(height: 4),
             LayoutBuilder(builder: (context, c) {
