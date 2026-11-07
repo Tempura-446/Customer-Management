@@ -96,7 +96,7 @@ class SyncClient extends ChangeNotifier {
   void _applyRow(String t, Map<String, Object?> row) {
     final existing = db.raw.select('SELECT * FROM $t WHERE id=?', [row['id']]).firstOrNull;
     // A tombstone for a row we never had (hidden from this role): nothing to do.
-    if (existing == null && row['deleted'] == 1 && row.length <= 4) return;
+    if (existing == null && row['deleted'] == 1 && !row.containsKey('created_at')) return;
     AppDb.mergeMissing(existing == null ? null : Map<String, Object?>.from(existing), row);
     for (final c in db.uniqueClash(t, row) == null ? const <String>[] : AppDb.uniqueColumns[t] ?? const <String>[]) {
       if (row[c] != null) db.raw.execute('DELETE FROM $t WHERE $c=? AND id<>?', [row[c], row['id']]);
