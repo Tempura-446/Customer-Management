@@ -87,6 +87,32 @@ void main() {
     expect(ph.db.get('projects', pid)!.s('number'), hp.s('number'));
   });
 
+  test('photos tagged with a room: stored, synced, listed by room', () async {
+    final ph = await pairedPhone(installer, 'android');
+    await ph.client.sync();
+    final cid = saveCustomer(ph.db, {'name': 'Room Customer'});
+    final pid = createProject(ph.db, customerId: cid, title: 'Kitchen');
+    final mid = saveMeasurement(ph.db, projectId: pid, room: 'Kitchen', source: 'onsite', lines: []);
+    saveMeasurement(ph.db, projectId: pid, room: 'Pantry', source: 'onsite', lines: []);
+    final f1 = ph.files.addBytes(projectId: pid, bytes: Uint8List.fromList([1]), name: 'sink.jpg', category: 'photos', room: 'kitchen ');
+    ph.files.addBytes(projectId: pid, bytes: Uint8List.fromList([2]), name: 'wall.jpg', category: 'measurements',
+        entityType: 'measurement', entityId: mid, room: 'Kitchen');
+    ph.files.addBytes(projectId: pid, bytes: Uint8List.fromList([3]), name: 'shelf.jpg', category: 'photos', room: 'Pantry');
+    ph.files.addBytes(projectId: pid, bytes: Uint8List.fromList([4]), name: 'notes.pdf', category: 'photos', room: 'Kitchen');
+    expect(ph.files.roomsForProject(pid), ['Kitchen', 'Pantry']);
+    // Kitchen photos not attached to the measurement set itself; PDFs are not photos.
+    expect(ph.files.roomPhotos(pid, 'KITCHEN', excludeEntityId: mid).map((f) => f.s('name')), ['sink.jpg']);
+
+    await ph.client.sync();
+    expect(hub.get('files', f1)!.s('room'), 'kitchen');
+    hubFiles.setRoom(f1, 'Island');
+    await ph.client.sync();
+    expect(ph.db.get('files', f1)!.s('room'), 'Island');
+    expect(ph.files.roomsForProject(pid), ['Kitchen', 'Pantry', 'Island']);
+    hubFiles.setRoom(f1, '  ');
+    expect(hub.get('files', f1)!.ns('room'), isNull);
+  });
+
   test('changes made on the PC reach the phone; files download on demand', () async {
     final cid = saveCustomer(hub, {'name': 'Office Customer'});
     final pid = createProject(hub, customerId: cid, title: 'Bath');

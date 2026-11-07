@@ -356,7 +356,11 @@ class MeasurementScreen extends StatelessWidget {
                     entityType: 'measurement',
                     entityId: measurementId,
                     category: 'measurements',
+                    room: m.s('room'),
                     title: 'Photos & sketches'),
+                if (svc.files.roomPhotos(p.id, m.s('room'), excludeEntityId: measurementId) case final photos
+                    when photos.isNotEmpty)
+                  Section(title: 'Other ${m.s('room')} photos on this job', child: PhotoStrip(photos)),
                 Section(
                   title: 'Used by designs',
                   child: Column(children: [

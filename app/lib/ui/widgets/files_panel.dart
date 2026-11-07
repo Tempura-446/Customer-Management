@@ -47,6 +47,7 @@ class FilesPanel extends StatelessWidget {
     required this.category,
     this.title = 'Files',
     this.allowCategoryChoice = false,
+    this.room,
   });
 
   final String projectId;
@@ -54,6 +55,9 @@ class FilesPanel extends StatelessWidget {
   final String category;
   final String title;
   final bool allowCategoryChoice;
+
+  /// Room these files belong to (a measurement set's room): new photos get it automatically.
+  final String? room;
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +91,7 @@ class FilesPanel extends StatelessWidget {
           child: list.isEmpty
               ? const Muted('No files yet.')
               : Column(children: [
-                  for (final f in list) _FileRow(f: f, showCategory: entityType == null),
+                  for (final f in list) FileRow(f: f, showCategory: entityType == null),
                 ]),
         );
       },
@@ -115,12 +119,15 @@ class FilesPanel extends StatelessWidget {
     if (picked.isEmpty || !context.mounted) return;
     final cat = await _chooseCategory(context);
     if (cat == null || !context.mounted) return;
+    final anyImage = picked.any((f) => FileStore.isImage(f.name));
+    final room = this.room ?? (anyImage && (cat == 'photos' || cat == 'measurements') ? await pickRoom(context, projectId) : null);
+    if (room == _cancelled || !context.mounted) return;
     await attempt(context, () async {
       for (final f in picked) {
         if (f.path == null) continue;
         svc.files.addFile(
             projectId: projectId, sourcePath: f.path!, name: f.name, category: cat,
-            entityType: entityType, entityId: entityId);
+            entityType: entityType, entityId: entityId, room: FileStore.isImage(f.name) ? room : null);
       }
     }, success: '${picked.length} file(s) added');
   }
@@ -133,18 +140,96 @@ class FilesPanel extends StatelessWidget {
         : await picker.pickMultiImage(imageQuality: 85, maxWidth: 2400);
     if (shots.isEmpty || !context.mounted) return;
     final cat = entityType == null ? 'photos' : category;
+    final room = this.room ?? await pickRoom(context, projectId);
+    if (room == _cancelled || !context.mounted) return;
     await attempt(context, () async {
       for (final x in shots) {
         svc.files.addBytes(
             projectId: projectId, bytes: await x.readAsBytes(), name: x.name, category: cat,
-            entityType: entityType, entityId: entityId);
+            entityType: entityType, entityId: entityId, room: room);
       }
-    }, success: '${shots.length} photo(s) added');
+    }, success: '${shots.length} photo(s) added${room == null ? '' : ' to $room'}');
   }
 }
 
-class _FileRow extends StatelessWidget {
-  const _FileRow({required this.f, required this.showCategory});
+const _cancelled = '\u0000cancel';
+
+/// Ask which room photos show. Returns the room, null for "no room", or [_cancelled].
+Future<String?> pickRoom(BuildContext context, String projectId, {String? current}) async {
+  final rooms = context.svc.files.roomsForProject(projectId);
+  final other = TextEditingController();
+  final r = await showDialog<String>(
+    context: context,
+    builder: (c) => AlertDialog(
+      title: const Text('Which room?'),
+      content: SizedBox(
+        width: 380,
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const Muted('Photos tagged with a room show next to that room\'s measurements.'),
+          const SizedBox(height: 12),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final room in rooms)
+              ChoiceChip(
+                label: Text(room),
+                selected: current?.toLowerCase() == room.toLowerCase(),
+                onSelected: (_) => Navigator.pop(c, room),
+              ),
+            ChoiceChip(label: const Text('No room'), selected: current == null, onSelected: (_) => Navigator.pop(c, '')),
+          ]),
+          const SizedBox(height: 12),
+          TextField(
+            controller: other,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(labelText: 'Another room', hintText: 'e.g. Pantry, Mudroom'),
+            onSubmitted: (v) => Navigator.pop(c, v.trim()),
+          ),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(c, other.text.trim()), child: const Text('Use this room')),
+      ],
+    ),
+  );
+  other.dispose();
+  if (r == null) return _cancelled;
+  return r.isEmpty ? null : r;
+}
+
+/// A row of small photo thumbnails (tap to open).
+class PhotoStrip extends StatelessWidget {
+  const PhotoStrip(this.photos, {super.key});
+  final List<Rec> photos;
+  @override
+  Widget build(BuildContext context) {
+    final svc = context.svc;
+    return Wrap(spacing: 8, runSpacing: 8, children: [
+      for (final f in photos)
+        InkWell(
+          onTap: () => openStoredFile(context, f),
+          child: Tooltip(
+            message: f.s('name'),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: switch (svc.files.localPath(f.s('sha256'))) {
+                final local? => Image.file(File(local),
+                    width: 96, height: 96, fit: BoxFit.cover, cacheWidth: 240,
+                    errorBuilder: (_, _, _) => const SizedBox(width: 96, height: 96, child: Icon(Icons.image_outlined))),
+                null => Container(
+                    width: 96,
+                    height: 96,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: const Icon(Icons.cloud_download_outlined)),
+              },
+            ),
+          ),
+        ),
+    ]);
+  }
+}
+
+class FileRow extends StatelessWidget {
+  const FileRow({super.key, required this.f, required this.showCategory});
   final Rec f;
   final bool showCategory;
 
@@ -173,7 +258,8 @@ class _FileRow extends StatelessWidget {
           ? Text('Edited on this computer, not saved to the job yet',
               style: TextStyle(color: Theme.of(context).colorScheme.error))
           : Text([
-              if (showCategory) f.s('category'),
+              if (showCategory) cap(f.s('category')),
+              if (f.ns('room') != null) f.s('room'),
               '$kb KB',
               fmtDate(f.s('created_at')),
               if (local == null) 'on the main PC: tap to download',
@@ -198,7 +284,17 @@ class _FileRow extends StatelessWidget {
             }, success: svc.isHub ? 'Saved' : 'Saved: it goes to the main PC at the next sync'),
             child: const Text('Save changes'),
           ),
+        if (isImg)
+          IconButton(
+            tooltip: f.ns('room') == null ? 'Tag a room' : 'Room: ${f.s('room')} (change)',
+            icon: Icon(f.ns('room') == null ? Icons.sell_outlined : Icons.sell, size: 20),
+            onPressed: () async {
+              final r = await pickRoom(context, f.s('project_id'), current: f.ns('room'));
+              if (r != _cancelled) svc.files.setRoom(f.id, r);
+            },
+          ),
         IconButton(
+          tooltip: 'Remove file',
           icon: const Icon(Icons.delete_outline, size: 20),
           onPressed: () async {
             if (await confirm(context, 'Remove ${f.s('name')}?', ok: 'Remove', danger: true)) {

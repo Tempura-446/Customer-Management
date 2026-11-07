@@ -411,11 +411,11 @@ Future<Uint8List> jobPacketPdf(AppDb db, String projectId, PacketOptions o,
   // ---------------------------------------------------------------- photos
   if (o.photos) {
     final photos = db.select("SELECT * FROM files WHERE project_id=? AND deleted=0 AND category IN ('photos','measurements') "
-        'ORDER BY created_at', [projectId]).where((f) => _pdfImageOk(f.s('name'))).take(o.maxPhotos).toList();
+        "ORDER BY coalesce(room, '~'), created_at", [projectId]).where((f) => _pdfImageOk(f.s('name'))).take(o.maxPhotos).toList();
     final imgs = <(String, Uint8List)>[];
     for (final f in photos) {
       final b = await load(f);
-      if (b != null) imgs.add((f.s('name'), b));
+      if (b != null) imgs.add((f.ns('room') == null ? f.s('name') : '${f.s('room')} · ${f.s('name')}', b));
     }
     for (var i = 0; i < imgs.length; i += 4) {
       final chunk = imgs.sublist(i, i + 4 > imgs.length ? imgs.length : i + 4);

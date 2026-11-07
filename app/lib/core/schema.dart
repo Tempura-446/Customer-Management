@@ -160,7 +160,8 @@ const syncTables = <String, String>{
     entity_type TEXT, entity_id TEXT,       -- measurement | design | quote | invoice | null
     category TEXT NOT NULL,                 -- measurements | designs | quotes | invoices | photos | other
     name TEXT NOT NULL,
-    size INTEGER, sha256 TEXT NOT NULL, mime TEXT''',
+    size INTEGER, sha256 TEXT NOT NULL, mime TEXT,
+    room TEXT                               -- photos: which room (Kitchen, Pantry…), for grouping''',
 };
 
 /// Tables a "field" user (installer / measurer) never receives or sends:

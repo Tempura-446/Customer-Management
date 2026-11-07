@@ -111,6 +111,7 @@ class FileStore {
       final id = db.insert('files', {
         'project_id': f.s('project_id'), 'entity_type': f.ns('entity_type'), 'entity_id': f.ns('entity_id'),
         'category': f.s('category'), 'name': f.s('name'), 'size': bytes.length, 'sha256': newSha, 'mime': f.ns('mime'),
+        'room': f.ns('room'),
       });
       db.softDelete('files', fileId);
       log(db, f.s('project_id'), 'Updated ${f.s('name')} (edited in place)');
@@ -132,11 +133,12 @@ class FileStore {
     required String category,
     String? entityType,
     String? entityId,
+    String? room,
   }) {
     final bytes = File(sourcePath).readAsBytesSync();
     return addBytes(
         projectId: projectId, bytes: bytes, name: name ?? p.basename(sourcePath), category: category,
-        entityType: entityType, entityId: entityId);
+        entityType: entityType, entityId: entityId, room: room);
   }
 
   String addBytes({
@@ -146,6 +148,7 @@ class FileStore {
     required String category,
     String? entityType,
     String? entityId,
+    String? room,
   }) {
     final sha = sha256Of(bytes);
     // PC: every job folder gets its own copy so the folders stay complete.
@@ -156,6 +159,7 @@ class FileStore {
       final id = db.insert('files', {
         'project_id': projectId, 'entity_type': entityType, 'entity_id': entityId, 'category': category,
         'name': name, 'size': bytes.length, 'sha256': sha, 'mime': _mime(name),
+        'room': (room ?? '').trim().isEmpty ? null : room!.trim(),
       });
       log(db, projectId, 'File added to $category: $name');
       return id;
@@ -216,10 +220,39 @@ class FileStore {
   List<Rec> filesFor(String entityType, String entityId) => db.select(
       'SELECT * FROM files WHERE entity_type=? AND entity_id=? AND deleted=0 ORDER BY created_at', [entityType, entityId]);
 
+  /// Tag a file with a room (null / empty: no room).
+  void setRoom(String fileId, String? room) =>
+      db.update('files', fileId, {'room': (room ?? '').trim().isEmpty ? null : room!.trim()});
+
+  /// Rooms to offer when tagging photos of a job: its measurement rooms first, then
+  /// rooms already used on its files.
+  List<String> roomsForProject(String projectId) {
+    final out = <String>[];
+    void add(String? r) {
+      final t = (r ?? '').trim();
+      if (t.isNotEmpty && !out.any((x) => x.toLowerCase() == t.toLowerCase())) out.add(t);
+    }
+
+    for (final m in db.select('SELECT room FROM measurements WHERE project_id=? AND deleted=0 ORDER BY created_at', [projectId])) {
+      add(m.ns('room'));
+    }
+    for (final f in db.select('SELECT DISTINCT room FROM files WHERE project_id=? AND deleted=0 AND room IS NOT NULL', [projectId])) {
+      add(f.ns('room'));
+    }
+    return out;
+  }
+
+  /// Photos of a job tagged with [room] (any capitalisation), not counting those
+  /// attached to [excludeEntityId] (shown separately).
+  List<Rec> roomPhotos(String projectId, String room, {String? excludeEntityId}) => db.select(
+      "SELECT * FROM files WHERE project_id=? AND deleted=0 AND category IN ('photos','measurements') "
+      'AND lower(trim(room))=lower(trim(?)) AND (entity_id IS NULL OR entity_id<>?) ORDER BY created_at',
+      [projectId, room, excludeEntityId ?? '']).where((f) => isImage(f.s('name'))).toList();
+
   List<Rec> projectFiles(String projectId, {bool prices = true}) => db.select(
       'SELECT * FROM files WHERE project_id=? AND deleted=0 '
       "${prices ? '' : "AND category NOT IN ('quotes','invoices') "}"
-      'ORDER BY category, created_at',
+      "ORDER BY category, coalesce(room, '~'), created_at",
       [projectId]);
 
   static String _mime(String name) {
