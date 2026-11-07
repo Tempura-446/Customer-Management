@@ -82,8 +82,14 @@ class HubServer {
           return _json({'error': e.message}, status: e.status);
         } on BusinessError catch (e) {
           return _json({'error': e.message}, status: 400);
+        } on FormatException catch (e) {
+          return _json({'error': 'Bad request: ${e.message}'}, status: 400);
+        } on TypeError {
+          return _json({'error': 'Bad request'}, status: 400);
         }
       };
+
+  String get generation => db.meta('hub_generation') ?? '0';
 
   /// QuickBooks Web Connector endpoint (set on the main PC).
   QbwcService? qbwc;
@@ -124,23 +130,27 @@ class HubServer {
   }
 
   Response _hello(Request req) =>
-      _json({'app': 'cabinetcrm', 'hub': hubId, 'name': hubName, 'v': protocolVersion});
+      _json({'app': 'cabinetcrm', 'hub': hubId, 'name': hubName, 'v': protocolVersion, 'generation': generation});
+
+  static String _remote(Request req) =>
+      (req.context['shelf.io.connection_info'] as HttpConnectionInfo?)?.remoteAddress.address ?? '?';
 
   static String normalizeCode(String c) => c.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
   static String displayCode(String c) => c.length == 8 ? '${c.substring(0, 4)}-${c.substring(4)}' : c;
 
-  final _failedPairs = <DateTime>[];
+  final _failedPairs = <String, List<DateTime>>{};
 
   Future<Response> _pair(Request req) async {
-    // Brute-force guard: max 10 wrong codes per 15 minutes.
+    // Brute-force guard: max 10 wrong codes per 15 minutes from one address.
+    final who = _remote(req);
     final cutoff = DateTime.now().subtract(const Duration(minutes: 15));
-    _failedPairs.removeWhere((t) => t.isBefore(cutoff));
-    if (_failedPairs.length >= 10) throw _Http(429, 'Too many wrong codes. Wait 15 minutes and create a new code.');
+    final failed = (_failedPairs[who] ??= [])..removeWhere((t) => t.isBefore(cutoff));
+    if (failed.length >= 10) throw _Http(429, 'Too many wrong codes. Wait 15 minutes and create a new code.');
     final body = jsonDecode(await req.readAsString()) as Map<String, dynamic>;
-    final code = normalizeCode(body['code'] as String? ?? '');
+    final code = normalizeCode('${body['code'] ?? ''}');
     final row = db.raw.select('SELECT * FROM pairing_codes WHERE code=?', [code]).firstOrNull;
     if (row == null || (row['expires_at'] as String).compareTo(DateTime.now().toUtc().toIso8601String()) < 0) {
-      _failedPairs.add(DateTime.now());
+      failed.add(DateTime.now());
       throw _Http(403, 'Pairing code is invalid or expired. Create a new one on the PC.');
     }
     final user = db.get('users', row['user_id'] as String);
@@ -149,7 +159,7 @@ class HubServer {
     final token = randomToken();
     final deviceId = newId();
     db.raw.execute('INSERT INTO devices(id, user_id, name, token_hash, created_at) VALUES (?,?,?,?,?)',
-        [deviceId, user.id, body['device_name'] ?? 'Phone', hashToken(token), DateTime.now().toUtc().toIso8601String()]);
+        [deviceId, user.id, '${body['device_name'] ?? 'Phone'}', hashToken(token), DateTime.now().toUtc().toIso8601String()]);
     db.changed();
     return _json({
       'token': token, 'device_id': deviceId, 'hub': hubId, 'name': hubName,
@@ -178,11 +188,15 @@ class HubServer {
     final changes = (body['changes'] as Map<String, dynamic>?) ?? {};
     final result = mergePush(changes, role: role);
     final out = pullSince(since, role: role);
-    // Rejected rows: send back the hub version even if its seq is old.
+    // Rejected rows: send back the hub version even if its seq is old (only what this role may see).
     for (final MapEntry(key: t, value: ids) in result.rejected.entries) {
+      if (!tableAllowed(t, role, write: false)) continue;
       for (final id in ids) {
         final r = db.raw.select('SELECT * FROM $t WHERE id=?', [id]).firstOrNull;
-        if (r != null) (out[t] ??= []).add(outgoing(t, Map.from(r)));
+        if (r == null) continue;
+        final m = Map<String, Object?>.from(r);
+        if (!rowVisible(t, m, role)) continue;
+        (out[t] ??= []).add(outgoing(t, m));
       }
     }
     final pending = ((body['blobs_pending'] as List?) ?? const []).cast<String>();
@@ -191,17 +205,38 @@ class HubServer {
     db.changed();
     return _json({
       'cursor': db.currentSeq,
+      'generation': generation,
       'rows': out,
       'need_blobs': need,
       'accepted': result.accepted,
+      'accepted_ids': result.acceptedIds,
+      'skipped_ids': result.skippedIds,
       'user': outgoing('users', a.user.m),
     });
   }
 
+  static final _hex64 = RegExp(r'^[0-9a-f]{64}$');
+
+  /// Rows a device may push: well-formed, and files rows that can't escape the data folder.
+  String? _reject(String table, Map<String, Object?> row) {
+    if (row['id'] is! String || (row['id'] as String).isEmpty) return 'no id';
+    if (row['updated_at'] is! String) return 'no updated_at';
+    if (table == 'files' && (row['deleted'] ?? 0) == 0) {
+      if (!fileCategories.contains(row['category'])) return 'bad category';
+      if (row['sha256'] is! String || !_hex64.hasMatch(row['sha256'] as String)) return 'bad sha256';
+      if (row['name'] is! String || (row['name'] as String).trim().isEmpty) return 'no name';
+      if (db.get('projects', row['project_id'] as String?) == null) return 'unknown job';
+    }
+    return null;
+  }
+
   /// Apply rows pushed by a device. Public so tests (and a future cloud relay) can reuse it.
-  ({int accepted, Map<String, List<String>> rejected}) mergePush(Map<String, dynamic> changes, {required String role}) {
+  ({int accepted, Map<String, List<String>> rejected, Map<String, List<String>> acceptedIds,
+      Map<String, List<String>> skippedIds}) mergePush(Map<String, dynamic> changes, {required String role}) {
     var accepted = 0;
     final rejected = <String, List<String>>{};
+    final acceptedIds = <String, List<String>>{};
+    final skippedIds = <String, List<String>>{};
     final filedFromDevice = <String>[];
     db.tx(() {
       for (final table in syncTables.keys) {
@@ -209,45 +244,70 @@ class HubServer {
         if (rows.isEmpty) continue;
         if (!tableAllowed(table, role, write: true)) {
           for (final r in rows) {
-            (rejected[table] ??= []).add((r as Map)['id'] as String);
+            if (r is Map && r['id'] is String) (rejected[table] ??= []).add(r['id'] as String);
           }
           continue;
         }
         for (final raw in rows) {
-          final row = Map<String, Object?>.from(raw as Map);
+          if (raw is! Map) continue;
+          final row = Map<String, Object?>.from(raw);
+          final why = _reject(table, row);
+          if (why != null) {
+            if (row['id'] is String) (skippedIds[table] ??= []).add(row['id'] as String);
+            continue;
+          }
           final id = row['id'] as String;
-          if (!rowVisible(table, row, role)) continue;
+          if (!rowVisible(table, row, role)) {
+            (skippedIds[table] ??= []).add(id);
+            continue;
+          }
           final existing = db.raw.select('SELECT * FROM $table WHERE id=?', [id]).firstOrNull;
           if (existing != null && (existing['updated_at'] as String).compareTo(row['updated_at'] as String) >= 0) {
             (rejected[table] ??= []).add(id);
             continue;
           }
           // A device running an older version may not know newer columns: keep their current values.
-          if (existing != null) {
-            for (final MapEntry(:key, :value) in existing.entries) {
-              if (!row.containsKey(key)) row[key] = value;
-            }
-          }
+          AppDb.mergeMissing(existing == null ? null : Map<String, Object?>.from(existing), row);
           row.remove('dirty');
-          row['seq'] = db.nextSeq();
           row['dirty'] = 0;
           if (table == 'users') row['pin_hash'] = existing?['pin_hash'];
           if (existing != null && existing['number'] != null && DbNumbers.has(table)) {
             row['number'] = existing['number']; // numbers are owned by the hub
           }
+          // Would this new row clash with a different existing row on a unique column?
+          final clash = existing == null ? db.uniqueClash(table, row) : null;
+          if (clash != null) {
+            if (DbNumbers.has(table) && table != 'quotes') {
+              row['number'] = null; // a stale number (e.g. after a restore): give it a fresh one
+            } else if (table == 'settings') {
+              // Same setting created on two devices: merge into the hub's row.
+              if ((clash['updated_at'] as String).compareTo(row['updated_at'] as String) >= 0) {
+                (rejected[table] ??= []).add(id);
+                continue;
+              }
+              row['id'] = clash['id'];
+            } else {
+              (rejected[table] ??= []).add(id);
+              continue;
+            }
+          }
+          row['seq'] = db.nextSeq();
           db.assignNumber(table, row);
           db.putRaw(table, row);
           if (table == 'files') filedFromDevice.add(id);
+          (acceptedIds[table] ??= []).add(id);
           accepted++;
         }
       }
     });
     // A file filed on another device that is already on this PC (e.g. an inbox email
-    // attachment) gets copied into its job folder.
+    // attachment) gets copied into its job folder. Never fail the sync over a copy.
     for (final id in filedFromDevice) {
-      files.copyIntoProject(id);
+      try {
+        files.copyIntoProject(id);
+      } catch (_) {}
     }
-    return (accepted: accepted, rejected: rejected);
+    return (accepted: accepted, rejected: rejected, acceptedIds: acceptedIds, skippedIds: skippedIds);
   }
 
   Map<String, List<Map<String, Object?>>> pullSince(int since, {required String role}) {
@@ -257,7 +317,11 @@ class HubServer {
       final rows = db.raw.select('SELECT * FROM $table WHERE seq > ? ORDER BY seq', [since]);
       for (final r in rows) {
         final m = Map<String, Object?>.from(r);
-        if (!rowVisible(table, m, role)) continue;
+        if (!rowVisible(table, m, role)) {
+          // e.g. a note later marked 'money': the device must drop the version it has.
+          (out[table] ??= []).add({'id': m['id'], 'deleted': 1, 'updated_at': m['updated_at'], 'seq': m['seq']});
+          continue;
+        }
         (out[table] ??= []).add(outgoing(table, m));
       }
     }
@@ -268,6 +332,7 @@ class HubServer {
 
   Future<Response> _putBlob(Request req, String sha) async {
     _auth(req);
+    if (!_hex64.hasMatch(sha)) throw _Http(400, 'Bad file id');
     final bytes = await _readBytes(req);
     try {
       files.storeIncoming(sha, bytes);
@@ -279,11 +344,16 @@ class HubServer {
 
   Future<Response> _getBlob(Request req, String sha) async {
     final a = _auth(req);
-    final f = db.one('SELECT * FROM files WHERE sha256=? AND deleted=0 LIMIT 1', [sha]) ??
+    if (!_hex64.hasMatch(sha)) throw _Http(404, 'No such file');
+    final role = a.user.s('role');
+    final rows = db.select('SELECT * FROM files WHERE sha256=? AND deleted=0', [sha]);
+    // Hidden anywhere (e.g. filed under quotes) means hidden for field staff.
+    if (rows.any((r) => !rowVisible('files', r.m, role))) throw _Http(404, 'No such file');
+    final f = rows.firstOrNull ??
         // Attachments of measurement emails still waiting in the inbox.
         db.one("SELECT id, subject AS name, 'measurements' AS category FROM mail_inbox WHERE attachments LIKE ? AND deleted=0",
-            ['%$sha%']);
-    if (f == null || !rowVisible('files', f.m, a.user.s('role'))) throw _Http(404, 'No such file');
+            ['%"$sha"%']);
+    if (f == null) throw _Http(404, 'No such file');
     final path = files.localPath(sha);
     if (path == null) throw _Http(404, 'File not on the PC yet');
     if (!files.matchesChecksum(sha)) {

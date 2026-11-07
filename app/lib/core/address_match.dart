@@ -100,7 +100,10 @@ int addressScore(String subject, String? address) {
   final at = subjectTokens.indexOf(want.number);
   final after = subjectTokens.skip(at + 1).where((w) => !_directions.containsValue(w)).take(want.street.length + 2).toList();
   if (!want.street.every(after.contains)) return 0;
+  // "123 Main St" must not match the job at "123 Main Ave".
+  final seenSuffix = after.where((w) => _suffixes.containsValue(w) && !want.street.contains(w)).firstOrNull;
+  if (want.suffix != null && seenSuffix != null && seenSuffix != want.suffix) return 0;
   var score = 10 + want.street.length;
-  if (want.suffix != null && after.contains(want.suffix)) score += 3;
+  if (want.suffix != null && seenSuffix == want.suffix) score += 3;
   return score;
 }

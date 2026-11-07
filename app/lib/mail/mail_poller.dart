@@ -107,7 +107,10 @@ class MailPoller extends ChangeNotifier {
     db.setMeta('mail_folder', folder.trim().isEmpty ? 'INBOX' : folder.trim());
     db.setMeta('mail_poll_minutes', '${pollMinutes.clamp(1, 120)}');
     db.setMeta('mail_since_days', '${sinceDays.clamp(1, 365)}');
-    if (password != null && password.isNotEmpty) await secrets.write(_pwKey, password.replaceAll(' ', ''));
+    if (password != null && password.isNotEmpty) {
+      // Gmail shows app passwords in groups of four; other servers may have real spaces.
+      await secrets.write(_pwKey, host.trim().toLowerCase() == 'imap.gmail.com' ? password.replaceAll(' ', '') : password);
+    }
     if (changedBox) {
       // Different mailbox: start again from "the last N days".
       db.raw.execute("DELETE FROM meta WHERE key IN ('mail_last_uid','mail_uidvalidity')");

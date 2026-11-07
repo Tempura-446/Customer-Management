@@ -43,7 +43,7 @@ Future<FetchResult> fetchNewMail(MailConfig c, {int? afterUid, int? uidValidity,
     final found = await client.uidSearchMessages(searchCriteria: criteria);
     var uids = (found.matchingSequence?.toList() ?? <int>[])..sort();
     if (sameBox) uids = uids.where((u) => u > afterUid).toList(); // "n:*" always returns the newest one
-    if (uids.length > max) uids = uids.sublist(uids.length - max);
+    if (uids.length > max) uids = uids.sublist(0, max); // oldest first; the rest next poll
     final out = <MailEnvelope>[];
     var last = sameBox ? afterUid : (uids.isEmpty ? (box.uidNext ?? 1) - 1 : null);
     for (var i = 0; i < uids.length; i += 10) {

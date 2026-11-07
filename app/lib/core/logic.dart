@@ -239,12 +239,30 @@ Map<String, String> settings(AppDb db) {
   return s;
 }
 
+/// Settings use an id derived from the key, so two devices creating the same
+/// setting produce the same row and sync merges them instead of clashing.
+String settingId(String key) => 'setting:$key';
+
 void setSetting(AppDb db, String key, String value) {
   final row = db.one('SELECT id FROM settings WHERE key=?', [key]);
   if (row == null) {
-    db.insert('settings', {'key': key, 'value': value});
+    db.insert('settings', {'id': settingId(key), 'key': key, 'value': value});
   } else {
     db.update('settings', row.id, {'value': value, 'deleted': 0});
+  }
+}
+
+/// Older databases: give settings rows their key-derived ids (main PC only).
+void migrateSettingIds(AppDb db) {
+  if (!db.isHub) return;
+  final rows = db.select('SELECT id, key FROM settings');
+  for (final r in rows) {
+    final want = settingId(r.s('key'));
+    if (r.id == want || db.one('SELECT 1 FROM settings WHERE id=?', [want]) != null) continue;
+    db.tx(() {
+      db.raw.execute('UPDATE settings SET id=? WHERE id=?', [want, r.id]);
+      db.update('settings', want, {}); // new seq so other devices pick it up
+    });
   }
 }
 
@@ -417,8 +435,22 @@ List<Rec> customersList(AppDb db, {String? query}) {
 }
 
 void deleteProject(AppDb db, String id) => db.tx(() {
-      for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files', 'selections']) {
+      // Children of children first (lines, payments), then everything hanging off the job.
+      const children = {
+        'measurements': ('measurement_items', 'measurement_id'),
+        'quotes': ('quote_items', 'quote_id'),
+        'invoices': ('payments', 'invoice_id'),
+        'purchase_orders': ('po_items', 'po_id'),
+      };
+      for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files', 'selections',
+          'appointments', 'purchase_orders', 'qb_estimates']) {
         for (final r in db.select('SELECT id FROM $t WHERE project_id=? AND deleted=0', [id])) {
+          final child = children[t];
+          if (child != null) {
+            for (final c in db.select('SELECT id FROM ${child.$1} WHERE ${child.$2}=? AND deleted=0', [r.id])) {
+              db.softDelete(child.$1, c.id);
+            }
+          }
           db.softDelete(t, r.id);
         }
       }
@@ -633,6 +665,7 @@ void sendQuote(AppDb db, String qid) {
 void acceptQuote(AppDb db, String qid) {
   final q = db.get('quotes', qid)!;
   if (!['draft', 'sent'].contains(q.s('status'))) throw BusinessError('This quote can no longer be accepted.');
+  if (quoteItems(db, qid).isEmpty) throw BusinessError('Add at least one line before accepting a quote.');
   final pid = q.s('project_id');
   db.tx(() {
     db.update('quotes', qid, {'status': 'accepted', 'decided_on': today(), 'sent_on': q.ns('sent_on') ?? today()});

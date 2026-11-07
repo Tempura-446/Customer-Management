@@ -216,6 +216,25 @@ class BackupService extends ChangeNotifier {
       if (f.existsSync()) f.renameSync(p.join(dataDir, 'cabinet_crm.before-restore-$ts.db$suffix'));
     }
     pending.renameSync(current.path);
+    // Keep the change counter above anything devices have seen and mark a new "generation"
+    // so they re-fetch everything instead of silently drifting.
+    try {
+      String? meta(Database d, String k) =>
+          d.select('SELECT value FROM meta WHERE key=?', [k]).firstOrNull?['value'] as String?;
+      final old = sqlite3.open(p.join(dataDir, 'cabinet_crm.before-restore-$ts.db'), mode: OpenMode.readOnly);
+      final oldSeq = int.tryParse(meta(old, 'seq') ?? '') ?? 0;
+      final oldGen = int.tryParse(meta(old, 'hub_generation') ?? '') ?? 0;
+      old.close();
+      final now = sqlite3.open(current.path);
+      final snapSeq = int.tryParse(meta(now, 'seq') ?? '') ?? 0;
+      final snapGen = int.tryParse(meta(now, 'hub_generation') ?? '') ?? 0;
+      final maxGen = oldGen > snapGen ? oldGen : snapGen;
+      now.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('seq', ?)", ['${(oldSeq > snapSeq ? oldSeq : snapSeq) + 1000}']);
+      now.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('hub_generation', ?)", ['${maxGen + 1}']);
+      now.close();
+    } catch (_) {
+      // Best effort: the restore itself has already happened.
+    }
   }
 
   /// Copy job files from the backup mirror back where they are missing. Returns the count.

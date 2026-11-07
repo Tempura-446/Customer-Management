@@ -28,7 +28,8 @@ ThemeData appTheme(Brightness b) => ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2F6FDE), brightness: b),
       useMaterial3: true,
       visualDensity: VisualDensity.standard,
-      inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder(), isDense: true),
+      inputDecorationTheme: InputDecorationTheme(border: const OutlineInputBorder(), isDense: Services.desktop),
+      snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
       cardTheme: const CardThemeData(margin: EdgeInsets.zero),
     );
 

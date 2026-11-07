@@ -188,7 +188,7 @@ class _ApptCard extends StatelessWidget {
               Row(children: [
                 Expanded(
                     child: Text('$time  ${k.label}',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: compact ? 11 : 13, color: Color(k.color)))),
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: compact ? 12 : 13, color: tone(Color(k.color), context)))),
                 if (a.ns('user_name') != null)
                   Tooltip(
                     message: a.s('user_name'),
@@ -319,9 +319,9 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
               selected: _kind == k.key,
               showCheckmark: false,
               selectedColor: Color(k.color),
-              labelStyle: TextStyle(color: _kind == k.key ? Colors.white : Color(k.color), fontWeight: FontWeight.w600),
-              side: BorderSide(color: Color(k.color).withValues(alpha: 0.6)),
-              backgroundColor: Color(k.color).withValues(alpha: 0.08),
+              labelStyle: TextStyle(color: _kind == k.key ? Colors.white : tone(Color(k.color), context), fontWeight: FontWeight.w600),
+              side: BorderSide(color: tone(Color(k.color), context).withValues(alpha: 0.6)),
+              backgroundColor: tone(Color(k.color), context).withValues(alpha: 0.08),
               onSelected: (_) => setState(() => _kind = k.key),
             ),
         ]),
@@ -498,7 +498,7 @@ class _MyDayRow extends StatelessWidget {
       decoration: BoxDecoration(border: Border(left: BorderSide(color: Color(k.color), width: 5))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('$dayLabel ${d == null ? '' : DateFormat('h:mm a').format(d)} · ${k.label}',
-            style: TextStyle(fontWeight: FontWeight.w700, color: Color(k.color))),
+            style: TextStyle(fontWeight: FontWeight.w700, color: tone(Color(k.color), context))),
         Text('${a.s('customer')} · ${a.ns('pnum') ?? ''} ${a.s('ptitle')}'),
         if (addr != null) Muted(addr, size: 12),
         Wrap(spacing: 4, children: [

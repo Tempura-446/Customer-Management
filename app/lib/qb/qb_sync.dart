@@ -245,7 +245,7 @@ class QbSync extends ChangeNotifier {
       final jobs = _qbCustomers.values.where((q) => q.isJob && q.parentListId == p.s('cust_qb')).toList();
       final number = p.ns('number');
       final title = nameKey(p.s('title'));
-      final match = jobs.where((j) => number != null && j.name.toUpperCase().startsWith(number.toUpperCase())).firstOrNull ??
+      final match = jobs.where((j) => number != null && RegExp('^${RegExp.escape(number.toUpperCase())}(\\s|\$)').hasMatch(j.name.toUpperCase())).firstOrNull ??
           jobs.where((j) => nameKey(j.name) == title).firstOrNull;
       if (match != null) {
         db.update('projects', p.id, {'qb_list_id': match.listId, 'qb_full_name': match.fullName});

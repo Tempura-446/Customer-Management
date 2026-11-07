@@ -64,10 +64,10 @@ class DashboardScreen extends StatelessWidget {
             if (svc.hubError != null) WarnBanner(svc.hubError!),
             if (prices && unmatchedMailCount(db) > 0)
               Card(
-                color: const Color(0xFFFDF3E1),
+                color: tintPair(Accent.warn, context).$1,
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
-                  leading: const Icon(Icons.mark_email_unread_outlined),
+                  leading: Icon(Icons.mark_email_unread_outlined, color: tone(Accent.warn, context)),
                   title: Text('${unmatchedMailCount(db)} measurement email(s) need filing'),
                   subtitle: const Text("The subject didn't match exactly one job address."),
                   trailing: const Icon(Icons.chevron_right),
@@ -137,24 +137,27 @@ class _ActionRow extends StatelessWidget {
   final NextAction a;
 
   static const _colors = {
-    'overdue': Color(0xFFB02A2A), 'expired': Color(0xFFB02A2A), 'verify': Color(0xFFB02A2A),
-    'follow up': Color(0xFF8A5A12), 'invoice': Color(0xFF8A5A12), 'send': Color(0xFF8A5A12),
-    'confirm': Color(0xFF8A5A12), 'mark done': Color(0xFF8A5A12), 'book': Color(0xFF2357B8),
+    'overdue': Accent.bad, 'expired': Accent.bad, 'verify': Accent.bad,
+    'follow up': Accent.warn, 'invoice': Accent.warn, 'send': Accent.warn,
+    'confirm': Accent.warn, 'mark done': Accent.warn, 'book': Accent.info,
     'order': Color(0xFF6B46C1),
   };
 
   @override
   Widget build(BuildContext context) {
-    final c = _colors[a.kind] ?? Theme.of(context).colorScheme.onSurfaceVariant;
+    final c = tone(_colors[a.kind] ?? Theme.of(context).colorScheme.onSurfaceVariant, context);
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
       leading: Container(
         width: 80,
         padding: const EdgeInsets.symmetric(vertical: 3),
-        decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-        child: Text(a.kind.toUpperCase(),
-            textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: c)),
+        decoration: BoxDecoration(color: c.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(a.kind.toUpperCase(),
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c)),
+        ),
       ),
       title: Text(a.text),
       subtitle: Text('${a.customer} · ${a.ref}'),

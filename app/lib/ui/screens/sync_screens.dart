@@ -75,7 +75,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 'Workstation: open Cabinet CRM → "Find the main office PC", then type the code below.'),
             const SizedBox(height: 12),
             Container(
-              color: Colors.white,
+              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
               padding: const EdgeInsets.all(8),
               child: QrImageView(data: payload, size: 260, backgroundColor: Colors.white),
             ),

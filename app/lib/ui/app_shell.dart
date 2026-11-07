@@ -116,12 +116,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       (Icons.work_outline, 'Jobs', const ProjectsScreen()),
       (Icons.calendar_month_outlined, 'Calendar', const CalendarScreen()),
       (Icons.people_outline, 'Customers', const CustomersScreen()),
-      if (wide) (Icons.sync, syncLabel, syncPage),
+      if (wide) (svc.isHub ? Icons.devices_other : Icons.sync, syncLabel, syncPage),
       if (wide) (Icons.settings_outlined, 'Settings', const SettingsScreen()),
       if (!wide) (Icons.more_horiz, 'More', _MorePage(syncLabel: syncLabel, syncPage: syncPage)),
     ];
     if (_tab >= pages.length) _tab = 0;
-    final body = IndexedStack(index: _tab, children: [for (final p in pages) p.$3]);
+    // Each tab has its own Scaffold; a messenger here stops a toast showing in every tab at once.
+    final body = ScaffoldMessenger(child: IndexedStack(index: _tab, children: [for (final p in pages) p.$3]));
 
     if (wide) {
       return Scaffold(
@@ -135,7 +136,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               child: Column(children: [
                 BusinessLogo(settings: settings(svc.db), height: 36, maxWidth: 72),
                 const SizedBox(height: 4),
-                Text(svc.user?.s('name') ?? '', style: const TextStyle(fontSize: 11)),
+                SizedBox(
+                    width: 72,
+                    child: Text(svc.user?.s('name') ?? '',
+                        maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
               ]),
             ),
             trailing: svc.isHub

@@ -80,6 +80,7 @@ class Services extends ChangeNotifier {
     if (hubMode) {
       seedSettings(db);
       migrateStages(db);
+      migrateSettingIds(db);
       final hub = HubServer(db, files, hubName: db.meta('hub_name') ?? Platform.localHostname);
       final qbwc = QbwcService(db, QbSync(db));
       hub.qbwc = qbwc;

@@ -142,15 +142,15 @@ class _MeasurementFormScreenState extends State<MeasurementFormScreen> {
         Wrap(spacing: 6, runSpacing: 6, children: [
           for (final src in measurementSources)
             ChoiceChip(
-              avatar: Icon(sourceIcon(src.key), size: 18, color: _source == src.key ? Colors.white : Color(src.color)),
+              avatar: Icon(sourceIcon(src.key), size: 18, color: _source == src.key ? Colors.white : tone(Color(src.color), context)),
               label: Text(src.label),
               selected: _source == src.key,
               showCheckmark: false,
               selectedColor: Color(src.color),
               labelStyle: TextStyle(
-                  color: _source == src.key ? Colors.white : Color(src.color), fontWeight: FontWeight.w600),
-              side: BorderSide(color: Color(src.color).withValues(alpha: 0.6)),
-              backgroundColor: Color(src.color).withValues(alpha: 0.08),
+                  color: _source == src.key ? Colors.white : tone(Color(src.color), context), fontWeight: FontWeight.w600),
+              side: BorderSide(color: tone(Color(src.color), context).withValues(alpha: 0.6)),
+              backgroundColor: tone(Color(src.color), context).withValues(alpha: 0.08),
               onSelected: (_) => setState(() => _source = src.key),
             ),
         ]),

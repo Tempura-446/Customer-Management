@@ -30,18 +30,25 @@ class FileStore {
 
   String projectFolder(String projectId) {
     final pr = projectWithCustomer(db, projectId);
-    final num = pr?.ns('number') ?? projectId.substring(0, 8);
-    return p.join(root, 'Projects', '${num}_${slug(pr?.s('customer') ?? '')}');
+    final num = pr?.ns('number') ?? (projectId.length >= 8 ? projectId.substring(0, 8) : 'unknown');
+    return p.join(root, 'Projects', _safeName('${num}_${slug(pr?.s('customer') ?? '')}'));
   }
 
-  static String _safeName(String name) => name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+  /// One path component: no separators, no traversal, no reserved characters.
+  static String _safeName(String name) {
+    final s = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').replaceAll(RegExp(r'^\.+'), '_').trim();
+    return s.isEmpty ? 'file' : s;
+  }
+
+  static final _hex64 = RegExp(r'^[0-9a-f]{64}$');
+  static bool isSha(String s) => _hex64.hasMatch(s);
 
   String _targetPath(String projectId, String category, String name, String sha) {
     if (!db.isHub) {
       // Keep the real file name so 2020 / PDF viewers show something sensible.
       return p.join(root, 'blobs', sha.substring(0, 16), _safeName(name));
     }
-    final dir = p.join(projectFolder(projectId), category);
+    final dir = p.join(projectFolder(projectId), _safeName(fileCategories.contains(category) ? category : 'other'));
     final safe = _safeName(name);
     var target = p.join(dir, safe);
     var n = 1;
@@ -186,6 +193,7 @@ class FileStore {
 
   /// Bytes received over sync (hub: upload from phone; phone: download from hub).
   void storeIncoming(String sha, Uint8List bytes) {
+    if (!isSha(sha)) throw const FormatException('Bad file id');
     if (sha256Of(bytes) != sha) throw const FormatException('File checksum mismatch');
     if (hasBlob(sha)) return;
     final f = db.one('SELECT * FROM files WHERE sha256=? ORDER BY deleted, created_at LIMIT 1', [sha]);

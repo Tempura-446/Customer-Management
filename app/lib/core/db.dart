@@ -162,22 +162,55 @@ class AppDb extends ChangeNotifier {
   T tx<T>(T Function() body) {
     if (_txDepth == 0) raw.execute('BEGIN');
     _txDepth++;
+    var ok = false;
     try {
       final r = body();
-      _txDepth--;
-      if (_txDepth == 0) {
-        raw.execute('COMMIT');
-        _flush();
-      }
+      ok = true;
       return r;
-    } catch (_) {
+    } finally {
       _txDepth--;
       if (_txDepth == 0) {
-        raw.execute('ROLLBACK');
-        _changed = false;
+        if (ok) {
+          try {
+            raw.execute('COMMIT');
+          } catch (_) {
+            _rollback();
+            rethrow;
+          }
+          _flush();
+        } else {
+          _rollback();
+        }
       }
-      rethrow;
     }
+  }
+
+  void _rollback() {
+    try {
+      raw.execute('ROLLBACK');
+    } catch (_) {}
+    _changed = false;
+  }
+
+  /// Columns that must be unique besides the id (sync has to respect them).
+  static const uniqueColumns = {
+    'projects': ['number'],
+    'invoices': ['number'],
+    'purchase_orders': ['number'],
+    'settings': ['key'],
+    'qb_estimates': ['qb_txn_id'],
+    'mail_inbox': ['message_id'],
+  };
+
+  /// An existing row (other id) that would clash with [row] on a unique column, or null.
+  Map<String, Object?>? uniqueClash(String table, Map<String, Object?> row) {
+    for (final col in uniqueColumns[table] ?? const <String>[]) {
+      final v = row[col];
+      if (v == null || '$v'.isEmpty) continue;
+      final r = raw.select('SELECT * FROM $table WHERE $col=? AND id<>?', [v, row['id']]).firstOrNull;
+      if (r != null) return Map<String, Object?>.from(r);
+    }
+    return null;
   }
 
   void _write(String sql, List<Object?> args) {
@@ -225,10 +258,21 @@ class AppDb extends ChangeNotifier {
   /// Write a row exactly as received (sync). Does not stamp or notify.
   void putRaw(String table, Map<String, Object?> row) {
     final cols = columns(table).where(row.containsKey).toList();
+    final sets = cols.where((c) => c != 'id').map((c) => '$c=excluded.$c').join(',');
     raw.execute(
-        'INSERT OR REPLACE INTO $table (${cols.join(',')}) VALUES (${List.filled(cols.length, '?').join(',')})',
+        'INSERT INTO $table (${cols.join(',')}) VALUES (${List.filled(cols.length, '?').join(',')}) '
+        'ON CONFLICT(id) DO ${sets.isEmpty ? 'NOTHING' : 'UPDATE SET $sets'}',
         cols.map((c) => row[c]).toList());
     _changed = true;
+  }
+
+  /// Fill in columns missing from [row] (sent by an older app version) from [existing].
+  static Map<String, Object?> mergeMissing(Map<String, Object?>? existing, Map<String, Object?> row) {
+    if (existing == null) return row;
+    for (final MapEntry(:key, :value) in existing.entries) {
+      if (!row.containsKey(key)) row[key] = value;
+    }
+    return row;
   }
 
   @override

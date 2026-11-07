@@ -338,7 +338,10 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
   Future<void> _doSave({bool test = false}) async {
     try {
       if (test) {
-        final pw = _password.text.isNotEmpty ? _password.text.replaceAll(' ', '') : (await _mail.config())?.password;
+        final gmail = _host.text.trim().toLowerCase() == 'imap.gmail.com';
+        final pw = _password.text.isNotEmpty
+            ? (gmail ? _password.text.replaceAll(' ', '') : _password.text)
+            : (await _mail.config())?.password;
         if (pw == null) {
           if (mounted) toast(context, 'Enter the app password first.', error: true);
           return;

@@ -14,6 +14,39 @@ String fmtDateTime(String? iso) {
   return d == null ? iso : DateFormat('yyyy-MM-dd HH:mm').format(d);
 }
 
+/// Semantic accent colours used by chips, banners and badges.
+abstract final class Accent {
+  static const ok = Color(0xFF1F7A45);
+  static const warn = Color(0xFF8A5A12);
+  static const info = Color(0xFF2357B8);
+  static const bad = Color(0xFFB02A2A);
+  static const neutral = Color(0xFF6B7385);
+}
+
+/// A hue that stays legible on the current surface: as given in light mode,
+/// lightened in dark mode so small text clears ~4.5:1 on dark surfaces.
+Color tone(Color c, BuildContext context) {
+  if (Theme.of(context).brightness == Brightness.light) return c;
+  final h = HSLColor.fromColor(c);
+  return h
+      .withLightness(h.lightness < 0.65 ? 0.70 : h.lightness)
+      .withSaturation((h.saturation * 0.9).clamp(0.0, 1.0))
+      .toColor();
+}
+
+/// Soft background + readable foreground for pills, banners and badges.
+(Color bg, Color fg) tintPair(Color accent, BuildContext context) {
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  final fg = tone(accent, context);
+  return (fg.withValues(alpha: dark ? 0.22 : 0.12), fg);
+}
+
+String cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+String fmtTime(DateTime d) => DateFormat('h:mm a').format(d);
+
+/// What we call the hub computer in the UI.
+const hubName = 'main office PC';
+
 /// Wide layout (desktop / tablet landscape) vs. phone.
 bool isWide(BuildContext context) => MediaQuery.sizeOf(context).width >= 900;
 
@@ -65,43 +98,24 @@ class StatusChip extends StatelessWidget {
   final String status;
   final String? label;
 
-  static (Color, Color) colors(String s, ColorScheme cs) {
-    switch (s) {
-      case 'accepted':
-      case 'paid':
-      case 'completed':
-      case 'approved':
-      case 'verified':
-        return (const Color(0xFFE5F6EC), const Color(0xFF1F7A45));
-      case 'draft':
-      case 'not verified':
-      case 'pending':
-        return (const Color(0xFFFDF3E1), const Color(0xFF8A5A12));
-      case 'sent':
-      case 'presented':
-      case 'quoted':
-      case 'invoiced':
-      case 'ordered':
-      case 'received':
-        return (const Color(0xFFE8EFFC), const Color(0xFF2357B8));
-      case 'declined':
-      case 'void':
-      case 'lost':
-        return (const Color(0xFFFDECEC), const Color(0xFFB02A2A));
-      default:
-        return (cs.surfaceContainerHighest, cs.onSurfaceVariant);
-    }
-  }
+  static Color? accent(String s) => switch (s) {
+        'accepted' || 'paid' || 'completed' || 'approved' || 'verified' => Accent.ok,
+        'draft' || 'not verified' || 'pending' => Accent.warn,
+        'sent' || 'presented' || 'quoted' || 'invoiced' || 'ordered' || 'received' => Accent.info,
+        'declined' || 'void' || 'lost' => Accent.bad,
+        _ => null,
+      };
 
   @override
   Widget build(BuildContext context) {
-    final (bg, fg) = colors(status, Theme.of(context).colorScheme);
+    final cs = Theme.of(context).colorScheme;
+    final a = accent(status);
+    final (bg, fg) = a == null ? (cs.surfaceContainerHighest, cs.onSurfaceVariant) : tintPair(a, context);
     final text = label ?? (stageKeys.contains(status) ? stageLabel(status) : status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
-      child: Text(text[0].toUpperCase() + text.substring(1),
-          style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w600)),
+      child: Text(cap(text), style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -160,21 +174,20 @@ class WarnBanner extends StatelessWidget {
   final String text;
   final bool serious;
   @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: serious ? const Color(0xFFFDF3E1) : const Color(0xFFE8EFFC),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(children: [
-          Icon(serious ? Icons.warning_amber_rounded : Icons.info_outline,
-              size: 18, color: serious ? const Color(0xFF8A5A12) : const Color(0xFF2357B8)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(color: Color(0xFF3A3A3A)))),
-        ]),
-      );
+  Widget build(BuildContext context) {
+    final (bg, fg) = tintPair(serious ? Accent.warn : Accent.info, context);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Row(children: [
+        Icon(serious ? Icons.warning_amber_rounded : Icons.info_outline, size: 18, color: fg),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
+      ]),
+    );
+  }
 }
 
 /// Label/value rows.
@@ -338,8 +351,10 @@ class SourceChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final src = sourceOf(source);
-    final c = Color(src.color);
+    final c = tone(Color(src.color), context);
     final checked = src.needsVerify && verified;
+    final okC = tone(Accent.ok, context);
+    final badC = Theme.of(context).colorScheme.error;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -352,18 +367,16 @@ class SourceChip extends StatelessWidget {
         const SizedBox(width: 4),
         Flexible(
           child: Text(long ? src.label : src.short,
-              overflow: TextOverflow.ellipsis, style: TextStyle(color: c, fontSize: 11, fontWeight: FontWeight.w700)),
+              overflow: TextOverflow.ellipsis, style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w700)),
         ),
         if (src.needsVerify) ...[
           const SizedBox(width: 6),
-          Icon(checked ? Icons.verified : Icons.error_outline, size: 14,
-              color: checked ? const Color(0xFF1F7A45) : const Color(0xFFB02A2A)),
+          Icon(checked ? Icons.verified : Icons.error_outline, size: 14, color: checked ? okC : badC),
           if (long || !checked)
             Padding(
               padding: const EdgeInsets.only(left: 2),
               child: Text(checked ? 'verified${verifiedOn != null ? ' $verifiedOn' : ''}' : 'not verified',
-                  style: TextStyle(
-                      fontSize: 11, color: checked ? const Color(0xFF1F7A45) : const Color(0xFFB02A2A))),
+                  style: TextStyle(fontSize: 12, color: checked ? okC : badC)),
             ),
         ],
       ]),
@@ -405,7 +418,7 @@ class OrderTypeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ot = orderTypeOf(orderType);
-    final c = orderTypeColor(orderType);
+    final c = tone(orderTypeColor(orderType), context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -417,7 +430,7 @@ class OrderTypeChip extends StatelessWidget {
         Icon(orderTypeIcon(orderType), size: 14, color: c),
         const SizedBox(width: 4),
         Text(ot == null ? 'Order type?' : (long ? ot.label : ot.short),
-            style: TextStyle(color: c, fontSize: 11, fontWeight: FontWeight.w700)),
+            style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w700)),
       ]),
     );
   }
@@ -431,21 +444,24 @@ class OrderTypePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget chip(String? key, String label, Color c, IconData icon) => ChoiceChip(
+    Widget chip(String? key, String label, Color raw, IconData icon) {
+      final c = tone(raw, context);
+      return ChoiceChip(
           avatar: Icon(icon, size: 18, color: value == key ? Colors.white : c),
           label: Text(label),
           selected: value == key,
           showCheckmark: false,
-          selectedColor: c,
+          selectedColor: raw,
           labelStyle: TextStyle(color: value == key ? Colors.white : c, fontWeight: FontWeight.w600),
           side: BorderSide(color: c.withValues(alpha: 0.6)),
           backgroundColor: c.withValues(alpha: 0.08),
           onSelected: (_) => onChanged(key),
         );
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Wrap(spacing: 6, runSpacing: 6, children: [
         for (final o in orderTypes) chip(o.key, o.label, Color(o.color), orderTypeIcon(o.key)),
-        chip(null, 'Not decided yet', const Color(0xFF6B7385), Icons.help_outline),
+        chip(null, 'Not decided yet', Accent.neutral, Icons.help_outline),
       ]),
       if (orderTypeOf(value) case final ot?)
         Padding(padding: const EdgeInsets.only(top: 6), child: Muted(ot.hint, size: 12)),

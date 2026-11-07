@@ -404,7 +404,7 @@ class QuoteScreen extends StatelessWidget {
           ],
           if (status == 'draft' || status == 'sent')
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1F9D55)),
+              style: FilledButton.styleFrom(backgroundColor: Accent.ok, foregroundColor: Colors.white),
               icon: const Icon(Icons.check),
               label: const Text('Accepted'),
               onPressed: () async {

@@ -93,7 +93,12 @@ void markAppointmentDone(AppDb db, String id) {
   db.tx(() {
     db.update('appointments', id, {'status': 'done'});
     log(db, a.s('project_id'), '${k.label} done');
-    if (k.completes) markCompleted(db, a.s('project_id'), reason: '${k.label.toLowerCase()} done');
+    // Only the appointment that finishes this kind of order completes the job
+    // (a delivery on an installation job doesn't mean it's installed).
+    final p = db.get('projects', a.s('project_id'));
+    if (k.completes && p != null && k.key == completingKind(p.ns('order_type'))) {
+      markCompleted(db, a.s('project_id'), reason: '${k.label.toLowerCase()} done');
+    }
   });
 }
 

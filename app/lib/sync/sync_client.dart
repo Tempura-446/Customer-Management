@@ -75,7 +75,7 @@ class SyncClient extends ChangeNotifier {
   }
 
   void unpair() {
-    for (final k in ['hub_token', 'hub_id', 'hub_name', 'hub_hosts', 'cursor', 'user_id', 'last_sync']) {
+    for (final k in ['hub_token', 'hub_id', 'hub_name', 'hub_hosts', 'cursor', 'user_id', 'last_sync', 'hub_generation']) {
       db.raw.execute('DELETE FROM meta WHERE key=?', [k]);
     }
     notifyListeners();
@@ -89,7 +89,22 @@ class SyncClient extends ChangeNotifier {
 
   // ------------------------------------------------------------------ sync
 
-  Future<SyncResult> sync() async {
+  Future<SyncResult> sync() => _sync(retryAfterGenerationChange: true);
+
+  /// Store a row from the hub, keeping local columns the hub didn't send and
+  /// dropping any stale local row that would clash with it on a unique column.
+  void _applyRow(String t, Map<String, Object?> row) {
+    final existing = db.raw.select('SELECT * FROM $t WHERE id=?', [row['id']]).firstOrNull;
+    // A tombstone for a row we never had (hidden from this role): nothing to do.
+    if (existing == null && row['deleted'] == 1 && row.length <= 4) return;
+    AppDb.mergeMissing(existing == null ? null : Map<String, Object?>.from(existing), row);
+    for (final c in db.uniqueClash(t, row) == null ? const <String>[] : AppDb.uniqueColumns[t] ?? const <String>[]) {
+      if (row[c] != null) db.raw.execute('DELETE FROM $t WHERE $c=? AND id<>?', [row[c], row['id']]);
+    }
+    db.putRaw(t, row);
+  }
+
+  Future<SyncResult> _sync({required bool retryAfterGenerationChange}) async {
     if (!paired) throw SyncException('Not paired with the office PC yet.', unpaired: true);
     if (syncing) return SyncResult(0, 0, 0);
     syncing = true;
@@ -133,14 +148,20 @@ class SyncClient extends ChangeNotifier {
               if (sent == null || sent != local['updated_at']) continue; // edited again since: keep ours
             }
             row['dirty'] = 0;
-            db.putRaw(t, row);
+            _applyRow(t, row);
             pulled++;
           }
         }
-        // Rows that were pushed but not echoed back are accepted: clear dirty.
+        // Clear dirty for rows the hub confirmed (older hubs don't list them: then anything
+        // pushed and not echoed back counts as accepted).
+        final acceptedIds = res['accepted_ids'] as Map<String, dynamic>?;
+        final skippedIds = (res['skipped_ids'] as Map<String, dynamic>?) ?? const {};
         for (final MapEntry(key: k, value: ts) in pushedVersion.entries) {
           final [t, id] = k.split('/');
-          db.raw.execute('UPDATE $t SET dirty=0 WHERE id=? AND updated_at=? AND dirty=1', [id, ts]);
+          final confirmed = acceptedIds == null ||
+              ((acceptedIds[t] as List?)?.contains(id) ?? false) ||
+              ((skippedIds[t] as List?)?.contains(id) ?? false);
+          if (confirmed) db.raw.execute('UPDATE $t SET dirty=0 WHERE id=? AND updated_at=? AND dirty=1', [id, ts]);
         }
         db.setMeta('cursor', '${res['cursor']}');
         if (res['user'] != null) _storeUser(res['user'] as Map<String, dynamic>);
@@ -165,6 +186,22 @@ class SyncClient extends ChangeNotifier {
       // Hub already had the rest.
       for (final sha in files.pendingUploads()) {
         if (!((res['need_blobs'] as List?) ?? const []).contains(sha)) files.markUploaded(sha);
+      }
+      // The main PC was restored from a backup: its change counter started over, so
+      // everything we hold that isn't ours must be fetched again from scratch.
+      final gen = '${res['generation'] ?? '0'}';
+      final known = db.meta('hub_generation');
+      db.setMeta('hub_generation', gen);
+      if (known != null && known != gen && retryAfterGenerationChange) {
+        db.raw.execute('BEGIN');
+        for (final t in syncTables.keys) {
+          db.raw.execute('DELETE FROM $t WHERE dirty=0');
+        }
+        db.setMeta('cursor', '0');
+        db.raw.execute('COMMIT');
+        syncing = false;
+        final again = await _sync(retryAfterGenerationChange: false);
+        return SyncResult(pushed + again.pushed, pulled + again.pulled, uploaded + again.uploaded);
       }
       db.setMeta('last_sync', DateTime.now().toIso8601String());
       db.changed();
