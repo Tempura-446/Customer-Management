@@ -9,6 +9,7 @@ import 'screens/calendar_screens.dart';
 import 'screens/customers_screens.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screens.dart';
+import 'screens/mail_screens.dart';
 import 'screens/projects_screens.dart';
 import 'screens/settings_screens.dart';
 import 'screens/sync_screens.dart';
@@ -106,17 +107,23 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final svc = ServicesScope.of(context);
+    final wide = isWide(context);
+    final syncPage = svc.isHub ? const DevicesScreen() : const PhoneSyncScreen();
+    final syncLabel = svc.isHub ? 'Devices' : 'Sync';
+    // Phones get five short tabs; Sync and Settings live under "More".
     final pages = <(IconData, String, Widget)>[
-      (Icons.dashboard_outlined, 'Dashboard', const DashboardScreen()),
-      (Icons.people_outline, 'Customers', const CustomersScreen()),
+      (Icons.home_outlined, 'Home', const DashboardScreen()),
       (Icons.work_outline, 'Jobs', const ProjectsScreen()),
       (Icons.calendar_month_outlined, 'Calendar', const CalendarScreen()),
-      (Icons.sync, svc.isHub ? 'Devices' : 'Sync', svc.isHub ? const DevicesScreen() : const PhoneSyncScreen()),
-      (Icons.settings_outlined, 'Settings', const SettingsScreen()),
+      (Icons.people_outline, 'Customers', const CustomersScreen()),
+      if (wide) (Icons.sync, syncLabel, syncPage),
+      if (wide) (Icons.settings_outlined, 'Settings', const SettingsScreen()),
+      if (!wide) (Icons.more_horiz, 'More', _MorePage(syncLabel: syncLabel, syncPage: syncPage)),
     ];
+    if (_tab >= pages.length) _tab = 0;
     final body = IndexedStack(index: _tab, children: [for (final p in pages) p.$3]);
 
-    if (isWide(context)) {
+    if (wide) {
       return Scaffold(
         body: Row(children: [
           NavigationRail(
@@ -159,6 +166,52 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: [for (final p in pages) NavigationDestination(icon: Icon(p.$1), label: p.$2)],
       ),
+    );
+  }
+}
+
+/// Phone-only "More" tab: everything that doesn't need its own tab.
+class _MorePage extends StatelessWidget {
+  const _MorePage({required this.syncLabel, required this.syncPage});
+  final String syncLabel;
+  final Widget syncPage;
+
+  @override
+  Widget build(BuildContext context) {
+    final svc = ServicesScope.of(context);
+    Widget tile(IconData icon, String title, String subtitle, Widget page) => Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: ListTile(
+            leading: Icon(icon),
+            title: Text(title),
+            subtitle: Text(subtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => push(context, page),
+          ),
+        );
+    return Scaffold(
+      appBar: AppBar(title: const Text('More')),
+      body: PageBody(children: [
+        Row(children: [
+          BusinessLogo(settings: settings(svc.db), height: 40, maxWidth: 120),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(settings(svc.db)['business_name'] ?? '', style: Theme.of(context).textTheme.titleMedium),
+              Muted('${svc.user?.s('name') ?? ''} · ${svc.role}'),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 16),
+        if (svc.prices) tile(Icons.mail_outline, 'Email inbox', 'Measurement emails waiting to be filed', const MailInboxScreen()),
+        tile(Icons.sync, syncLabel, svc.isHub ? 'Connected workstations and phones' : 'Sync with the office PC', syncPage),
+        tile(Icons.settings_outlined, 'Settings', 'Business details, staff and more', const SettingsScreen()),
+        if (svc.isHub)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: OutlinedButton.icon(onPressed: svc.signOut, icon: const Icon(Icons.logout), label: const Text('Sign out')),
+          ),
+      ]),
     );
   }
 }

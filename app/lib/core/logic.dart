@@ -941,8 +941,8 @@ List<NextAction> nextActions(AppDb db, {bool prices = true}) {
             : 'Verify measurements on site before ordering'));
   }
   out.addAll(scheduleNextActions(db));
-  out.addAll(ordersNextActions(db));
   if (!prices) return out;
+  out.addAll(ordersNextActions(db));
 
   for (final p in db.select("$pj AND p.status='designing' AND NOT EXISTS "
       "(SELECT 1 FROM quotes q WHERE q.project_id=p.id AND q.deleted=0 AND q.status<>'superseded')")) {
