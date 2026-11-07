@@ -294,7 +294,7 @@ bar. If your logo already spells out the business name, tick **My logo already s
 |---|---|
 | `Casework-Setup-x.y.z.exe` | **Windows installer.** Run it on each PC and click through. It installs to Program Files, adds Start menu and optional desktop shortcuts, can start the app with Windows (tick this on the main office PC), allows sync through the firewall on private networks, and includes the Visual C++ runtime. A newer installer upgrades in place. Uninstall from Settings → Apps; your data in `Documents\Cabinet CRM` is never deleted. Until the installer is code-signed, SmartScreen shows "Windows protected your PC": click **More info → Run anyway**. |
 | `Casework-Android.apk` | Copy it to the phone and install. Allow "install unknown apps" for your file manager. |
-| iPhone | CI checks that the iPhone app builds. Installing it needs an Apple Developer account ($99/yr) and TestFlight: see the notes in `.github/workflows/build.yml`. |
+| iPhone | Installed through **TestFlight** once the Apple secrets are added (below). Until then CI only checks that the iPhone app builds. |
 
 ### Signing the Android app (do this once)
 
@@ -316,6 +316,34 @@ Until a key is added, each build is signed with a throwaway key, so updating mea
    and `ANDROID_KEY_PASSWORD` (the same password, unless you chose a different one for the key).
 4. The next build is signed with it. Uninstall the old app on each phone once (after syncing), install the new APK,
    and pair again. From then on, updates install over the top.
+
+### iPhone app: TestFlight (do this once)
+
+Needs an Apple Developer account ($99/year). After this, every release puts the iPhone app on TestFlight; staff
+install the free TestFlight app and accept the invite once, then get updates automatically.
+
+1. **App record.** In App Store Connect, **Apps → +**, bundle ID `com.cabinetcrm.cabinetCrm`, name Casework.
+2. **Certificate.** In Xcode (**Settings → Accounts → Manage Certificates → + → Apple Distribution**) or on
+   developer.apple.com. Export it from Keychain Access as a `.p12` with a password.
+3. **Profile.** On developer.apple.com, **Profiles → + → App Store Connect**, for that bundle ID and certificate.
+   Download the `.mobileprovision`.
+4. **API key.** App Store Connect → **Users and Access → Integrations → App Store Connect API**, create a key with
+   the App Manager role. Note the key ID and issuer ID, download the `.p8` (only possible once).
+5. **Repository secrets** (GitHub **Settings → Secrets and variables → Actions**):
+
+   | Secret | Value |
+   |---|---|
+   | `APPLE_TEAM_ID` | Team ID from developer.apple.com → Membership |
+   | `IOS_DIST_CERT_P12_BASE64` | `base64 -i cert.p12` |
+   | `IOS_DIST_CERT_PASSWORD` | the `.p12` password |
+   | `IOS_PROVISION_PROFILE_BASE64` | `base64 -i Casework.mobileprovision` |
+   | `APP_STORE_CONNECT_KEY_ID` | key ID |
+   | `APP_STORE_CONNECT_ISSUER_ID` | issuer ID |
+   | `APP_STORE_CONNECT_KEY_P8` | the whole text of the `.p8` file |
+
+6. Publish a release as usual. In App Store Connect → **TestFlight**, add your staff as testers.
+
+Builds on your own Mac keep automatic signing; only the release job switches to these secrets.
 
 ## Backups
 

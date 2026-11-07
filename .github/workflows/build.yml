@@ -150,6 +150,10 @@ jobs:
   ios:
     needs: test
     runs-on: macos-latest
+    env:
+      # TestFlight upload happens only for releases, and only once the Apple secrets exist
+      # (README, "iPhone app: TestFlight").
+      IOS_SIGNING: ${{ secrets.IOS_DIST_CERT_P12_BASE64 != '' && secrets.APP_STORE_CONNECT_KEY_P8 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -158,18 +162,69 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
-      # Unsigned build: proves the iOS app compiles (not uploaded: it can't be installed as-is).
-      - run: flutter build ios --release --no-codesign
+      # Unsigned build: proves the iPhone app compiles.
+      - if: env.IOS_SIGNING != 'true' || env.RELEASE_TAG == ''
+        run: flutter build ios --release --no-codesign
 
-      # ---- TestFlight (later, needs an Apple Developer account, $99/yr) ----
-      # Add these repository secrets, then replace the unsigned build with
-      # `flutter build ipa --release --export-options-plist=ios/ExportOptions.plist`
-      # and upload with `xcrun altool` / fastlane:
-      #   APPLE_TEAM_ID                 - from developer.apple.com > Membership
-      #   IOS_DIST_CERT_P12_BASE64      - Apple Distribution certificate (.p12), base64
-      #   IOS_DIST_CERT_PASSWORD        - password of that .p12
-      #   IOS_PROVISION_PROFILE_BASE64  - App Store provisioning profile for the bundle id, base64
-      #   APP_STORE_CONNECT_KEY_ID      - App Store Connect API key id
-      #   APP_STORE_CONNECT_ISSUER_ID   - API key issuer id
-      #   APP_STORE_CONNECT_KEY_P8      - the .p8 key contents
+      - name: Install the distribution certificate and App Store profile
+        if: env.IOS_SIGNING == 'true' && env.RELEASE_TAG != ''
+        env:
+          P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+        run: |
+          KC="$RUNNER_TEMP/signing.keychain-db"
+          KC_PW="$(uuidgen)"
+          security create-keychain -p "$KC_PW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KC_PW" "$KC"
+          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          security import "$RUNNER_TEMP/dist.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KC"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KC_PW" "$KC"
+          security list-keychain -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          echo "$PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/app.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/app.mobileprovision" > "$RUNNER_TEMP/app.plist"
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/app.plist")
+          NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/app.plist")
+          for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$d" && cp "$RUNNER_TEMP/app.mobileprovision" "$d/$UUID.mobileprovision"
+          done
+          echo "PROFILE_NAME=$NAME" >> "$GITHUB_ENV"
 
+      - name: Sign the app target with that profile
+        if: env.IOS_SIGNING == 'true' && env.RELEASE_TAG != ''
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          python3 ios/ci_manual_signing.py ios/Runner.xcodeproj/project.pbxproj "$TEAM_ID" "$PROFILE_NAME"
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key><dict><key>com.cabinetcrm.cabinetCrm</key><string>$PROFILE_NAME</string></dict>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          EOF
+
+      # Build numbers must always go up for TestFlight: use the workflow run number.
+      - name: Build the signed iPhone app
+        if: env.IOS_SIGNING == 'true' && env.RELEASE_TAG != ''
+        run: flutter build ipa --release --build-number=${{ github.run_number }} --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Upload to TestFlight
+        if: env.IOS_SIGNING == 'true' && env.RELEASE_TAG != ''
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s\n' "$KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_$KEY_ID.p8"
+          xcrun altool --upload-app --type ios --file build/ios/ipa/*.ipa --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
+
+      - name: Remove the signing keychain
+        if: always() && env.IOS_SIGNING == 'true' && env.RELEASE_TAG != ''
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
