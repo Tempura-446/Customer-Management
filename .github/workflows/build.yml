@@ -17,6 +17,12 @@ env:
   # Release tag: a pushed v* tag, or the tag typed when starting the workflow by hand.
   RELEASE_TAG: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || '' }}
 
+# A newer push to the same branch cancels the older push build (saves runner minutes).
+# Releases started by hand are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.release_tag || github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 defaults:
   run:
     working-directory: app
@@ -67,10 +73,12 @@ jobs:
       # Branch builds: short-lived download (Actions storage is limited).
       - if: env.RELEASE_TAG == ''
         uses: actions/upload-artifact@v4
+        # Test downloads only: a full storage quota must not fail the build.
+        continue-on-error: true
         with:
           name: Casework-Windows-Setup
           path: app/build/installer/Casework-Setup-*.exe
-          retention-days: 5
+          retention-days: 2
           compression-level: 0
       # Version tags (v1.0.0): attach to the GitHub Release (doesn't use Actions storage).
       - if: env.RELEASE_TAG != ''
@@ -125,10 +133,12 @@ jobs:
       - run: cp build/app/outputs/flutter-apk/app-release.apk Casework-Android.apk
       - if: env.RELEASE_TAG == ''
         uses: actions/upload-artifact@v4
+        # Test downloads only: a full storage quota must not fail the build.
+        continue-on-error: true
         with:
           name: Casework-Android
           path: app/Casework-Android.apk
-          retention-days: 5
+          retention-days: 2
           compression-level: 0
       - if: env.RELEASE_TAG != ''
         uses: softprops/action-gh-release@v2

@@ -287,7 +287,7 @@ bar. If your logo already spells out the business name, tick **My logo already s
 - **Version releases (recommended).** Bump `version:` in `app/pubspec.yaml` (e.g. `1.1.0+2`) and push a tag `v1.1.0`.
   GitHub then publishes a **Release** with the Windows installer and the Android APK attached, under **Releases** on
   the repository page. Release files don't expire.
-- **Test builds.** Every other push builds everything. The installer and APK are kept as downloads for 5 days
+- **Test builds.** Every other push builds everything. The installer and APK are kept as downloads for 2 days
   under **Actions → Build → Artifacts**.
 
 | File | What to do |
