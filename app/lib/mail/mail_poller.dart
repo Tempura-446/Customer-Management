@@ -7,6 +7,7 @@ import '../core/db.dart';
 import '../core/files.dart';
 import 'imap_fetcher.dart';
 import 'mail_ingest.dart';
+import 'smtp_sender.dart';
 
 /// Where the mailbox password is kept: Windows Credential Manager (DPAPI) via
 /// flutter_secure_storage, never in the database (which is backed up and synced).
@@ -59,14 +60,16 @@ typedef Fetcher = Future<FetchResult> Function(MailConfig c, {int? afterUid, int
 /// Main office PC: checks the measurement mailbox every few minutes and files new emails.
 /// Settings live in the local `meta` table of the main PC only.
 class MailPoller extends ChangeNotifier {
-  MailPoller(this.db, this.files, {SecretStore? secrets, Fetcher? fetcher})
+  MailPoller(this.db, this.files, {SecretStore? secrets, Fetcher? fetcher, MailSender? sender})
       : secrets = secrets ?? DeviceSecretStore(),
-        _fetch = fetcher ?? fetchNewMail;
+        _fetch = fetcher ?? fetchNewMail,
+        _send = sender ?? sendViaSmtp;
 
   final AppDb db;
   final FileStore files;
   final SecretStore secrets;
   final Fetcher _fetch;
+  final MailSender _send;
   Timer? _timer;
   bool checking = false;
 
@@ -82,6 +85,36 @@ class MailPoller extends ChangeNotifier {
   String? get lastCheck => db.meta('mail_last_check');
   String? get lastError => db.meta('mail_last_error');
   String? get lastSummary => db.meta('mail_last_summary');
+
+  /// Outgoing server (job packets for approval). Defaults from the IMAP server.
+  String get smtpHost => db.meta('mail_smtp_host') ?? smtpHostFor(host);
+  int get smtpPort => int.tryParse(db.meta('mail_smtp_port') ?? '') ?? 465;
+
+  void saveSmtp({required String host, required int port}) {
+    final h = host.trim();
+    if (h.isEmpty || h.toLowerCase() == smtpHostFor(this.host)) {
+      db.raw.execute("DELETE FROM meta WHERE key='mail_smtp_host'");
+    } else {
+      db.setMeta('mail_smtp_host', h);
+    }
+    db.setMeta('mail_smtp_port', '$port');
+  }
+
+  /// Can this PC send email? (The mailbox address and app password are saved.)
+  Future<bool> canSend() async => (await config()) != null;
+
+  /// Send from the shared mailbox. A copy stays in its Sent folder (Gmail does this itself).
+  Future<void> send({required List<String> to, required String subject, required String text,
+      List<(String, Uint8List)> attachments = const [], String? fromName}) async {
+    final c = await config();
+    if (c == null) throw Exception('Set up the measurement mailbox first (Settings › Measurement email).');
+    await _send(
+        OutgoingMail(fromName: fromName ?? '', fromEmail: c.user, to: to, subject: subject, text: text, attachments: attachments),
+        host: smtpHost,
+        port: smtpPort,
+        user: c.user,
+        password: c.password);
+  }
 
   Future<MailConfig?> config() async {
     final pw = await secrets.read(_pwKey);

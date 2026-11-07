@@ -53,6 +53,10 @@ class AppDb extends ChangeNotifier {
       ('projects', 'qb_full_name', 'TEXT'),
       ('customers', 'qb_list_id', 'TEXT'),
       ('files', 'room', 'TEXT'),
+      ('projects', 'approval_sent_on', 'TEXT'),
+      ('projects', 'approval_sent_to', 'TEXT'),
+      ('projects', 'approved_on', 'TEXT'),
+      ('projects', 'approved_by', 'TEXT'),
     ];
     for (final (table, column, type) in added) {
       final cols = raw.select('PRAGMA table_info($table)').map((r) => r['name']).toSet();

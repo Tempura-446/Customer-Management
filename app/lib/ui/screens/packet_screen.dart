@@ -2,9 +2,12 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 
+import '../../core/approval.dart';
 import '../../core/db.dart';
 import '../../core/logic.dart';
+import '../../mail/smtp_sender.dart';
 import '../../pdf/documents.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
@@ -38,34 +41,90 @@ class _PacketScreenState extends State<PacketScreen> {
     if (!context.svc.prices) _o.prices = false;
   }
 
-  Future<void> _create() async {
+  Future<Uint8List> _build() {
     final svc = context.svc;
+    Future<Uint8List?> load(Rec f) async {
+      try {
+        var path = svc.files.localPath(f.s('sha256'));
+        path ??= await svc.client?.fetchBlob(f.s('sha256'));
+        return path == null ? null : await File(path).readAsBytes();
+      } catch (_) {
+        return null; // not available (e.g. away from the office network): leave it out
+      }
+    }
+
+    return buildJobPacket(svc.db, widget.projectId, _o, load: load, zpdf: svc.zpdf);
+  }
+
+  String _filename() {
+    final p = projectWithCustomer(context.db, widget.projectId)!;
+    final kind = {'customer': 'Job-summary', 'production': 'Production-packet', 'office': 'Job-file'}[_preset]!;
+    return safeFilename('${numberOf(p)}_${p.s('customer')}_${kind}_${today()}.pdf');
+  }
+
+  Future<void> _create() async {
     setState(() => _busy = true);
     try {
-      Future<Uint8List?> load(Rec f) async {
-        try {
-          var path = svc.files.localPath(f.s('sha256'));
-          path ??= await svc.client?.fetchBlob(f.s('sha256'));
-          return path == null ? null : await File(path).readAsBytes();
-        } catch (_) {
-          return null; // not available (e.g. away from the office network): leave it out
-        }
-      }
-
-      final bytes = await buildJobPacket(svc.db, widget.projectId, _o, load: load, zpdf: svc.zpdf);
+      final bytes = await _build();
       if (!mounted) return;
-      final p = projectWithCustomer(svc.db, widget.projectId)!;
-      final kind = {'customer': 'Job-summary', 'production': 'Production-packet', 'office': 'Job-file'}[_preset]!;
       await showPdf(
         context,
         bytes: bytes,
-        filename: safeFilename('${numberOf(p)}_${p.s('customer')}_${kind}_${today()}.pdf'),
+        filename: _filename(),
         projectId: widget.projectId,
         // Packets with prices are filed with quotes so installers' phones never receive them.
         category: _o.prices ? 'quotes' : 'other',
       );
     } catch (e) {
       if (mounted) toast(context, "Couldn't build the packet: $e", error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Build the packet and email it to the customer from the shared mailbox (main office PC),
+  /// or hand it to the device's share sheet. Either way the job records it as sent for approval.
+  Future<void> _sendForApproval() async {
+    final svc = context.svc;
+    final db = svc.db;
+    final p = projectWithCustomer(db, widget.projectId)!;
+    final customer = db.get('customers', p.s('customer_id'));
+    final direct = svc.mail != null && await svc.mail!.canSend();
+    if (!mounted) return;
+    setState(() => _busy = true);
+    try {
+      _o.signoff = true; // the customer needs the page to sign
+      final bytes = await _build();
+      final name = _filename();
+      if (!mounted) return;
+      if (direct) {
+        final (subject, text) = approvalEmailText(db, widget.projectId);
+        final sent = await showDialog<String>(
+          context: context,
+          builder: (c) => _EmailDialog(
+            to: customer?.ns('email') ?? '',
+            subject: subject,
+            text: text,
+            attachment: name,
+            send: (to, subject, text) => svc.mail!.send(
+                to: to, subject: subject, text: text, attachments: [(name, bytes)], fromName: settings(db)['business_name']),
+          ),
+        );
+        if (sent == null || !mounted) return;
+        markSentForApproval(db, widget.projectId, to: sent);
+        svc.files.addBytes(projectId: widget.projectId, bytes: bytes, name: name, category: _o.prices ? 'quotes' : 'other');
+        toast(context, 'Sent to $sent. A copy is filed with the job.');
+      } else {
+        await Printing.sharePdf(bytes: bytes, filename: name);
+        if (!mounted) return;
+        if (await confirm(context, 'Did you send the packet to ${p.s('customer')}? The job will show it as waiting for approval.',
+            ok: 'Yes, it was sent')) {
+          markSentForApproval(db, widget.projectId, to: customer?.ns('email'), via: 'shared from this device');
+          svc.files.addBytes(projectId: widget.projectId, bytes: bytes, name: name, category: _o.prices ? 'quotes' : 'other');
+        }
+      }
+    } catch (e) {
+      if (mounted) toast(context, "Couldn't send the packet: $e", error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -115,16 +174,29 @@ class _PacketScreenState extends State<PacketScreen> {
         opt('Notes (calls, emails, site visits)', _o.notes, (v) => _o.notes = v),
         opt('Customer approval / signature page', _o.signoff, (v) => _o.signoff = v),
         const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: FilledButton.icon(
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          FilledButton.icon(
             onPressed: _busy ? null : _create,
             icon: _busy
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.picture_as_pdf_outlined),
             label: Text(_busy ? 'Building…' : 'Create packet'),
           ),
-        ),
+          if (_preset == 'customer' && svc.prices)
+            OutlinedButton.icon(
+              onPressed: _busy ? null : _sendForApproval,
+              icon: const Icon(Icons.forward_to_inbox_outlined),
+              label: const Text('Email to customer for approval'),
+            ),
+        ]),
+        if (p.ns('approval_sent_on') != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Muted(p.ns('approved_on') != null
+                ? 'Approved by ${p.s('approved_by')} on ${p.s('approved_on')}.'
+                : 'Sent for approval on ${p.s('approval_sent_on')}${p.ns('approval_sent_to') == null ? '' : ' to ${p.s('approval_sent_to')}'}. '
+                    'Sending again replaces it: the customer approves the newest version.'),
+          ),
         const SizedBox(height: 8),
         if (Services.desktop)
           WarnBanner(
@@ -143,4 +215,92 @@ class _PacketScreenState extends State<PacketScreen> {
       ]),
     );
   }
+}
+
+class _EmailDialog extends StatefulWidget {
+  const _EmailDialog(
+      {required this.to, required this.subject, required this.text, required this.attachment, required this.send});
+  final String to, subject, text, attachment;
+  final Future<void> Function(List<String> to, String subject, String text) send;
+  @override
+  State<_EmailDialog> createState() => _EmailDialogState();
+}
+
+class _EmailDialogState extends State<_EmailDialog> {
+  late final _to = TextEditingController(text: widget.to);
+  late final _subject = TextEditingController(text: widget.subject);
+  late final _text = TextEditingController(text: widget.text);
+  bool _sending = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    for (final c in [_to, _subject, _text]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _go() async {
+    final List<String> to;
+    try {
+      to = parseRecipients(_to.text);
+    } on ArgumentError catch (e) {
+      setState(() => _error = '${e.message}');
+      return;
+    }
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    try {
+      await widget.send(to, _subject.text.trim(), _text.text);
+      if (mounted) Navigator.pop(context, to.join(', '));
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Email for approval'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              TextField(
+                  controller: _to,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'To', helperText: 'Several addresses: separate with commas')),
+              const SizedBox(height: 8),
+              TextField(controller: _subject, decoration: const InputDecoration(labelText: 'Subject')),
+              const SizedBox(height: 8),
+              TextField(
+                  controller: _text,
+                  minLines: 6,
+                  maxLines: 14,
+                  decoration: const InputDecoration(labelText: 'Message', alignLabelWithHint: true)),
+              const SizedBox(height: 8),
+              Row(children: [
+                const Icon(Icons.attach_file, size: 18),
+                const SizedBox(width: 4),
+                Expanded(child: Muted(widget.attachment, size: 12)),
+              ]),
+              if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: WarnBanner(_error!)),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: _sending ? null : () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton.icon(
+            onPressed: _sending ? null : _go,
+            icon: _sending
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.send),
+            label: Text(_sending ? 'Sending…' : 'Send'),
+          ),
+        ],
+      );
 }

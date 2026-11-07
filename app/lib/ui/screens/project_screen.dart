@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/approval.dart';
 import '../../core/db.dart';
 import '../../core/logic.dart';
 import '../../qb/qb_sync.dart';
@@ -76,6 +77,7 @@ class ProjectScreen extends StatelessWidget {
             _Header(p: p),
             _Stepper(status: normalizeStage(p.s('status')), projectId: projectId),
             for (final w in projectWarnings(db, projectId, prices: prices)) WarnBanner(w.message, serious: w.serious),
+            if (prices) _ApprovalLine(p: p),
             const SizedBox(height: 4),
             LayoutBuilder(builder: (context, c) {
               final cards = [
@@ -494,4 +496,89 @@ class _NotesCardState extends State<_NotesCard> {
 
 extension on String {
   String ifEmpty(String other) => isEmpty ? other : this;
+}
+
+/// "Sent for approval / approved" line on the job, with Record approval.
+class _ApprovalLine extends StatelessWidget {
+  const _ApprovalLine({required this.p});
+  final Rec p;
+
+  @override
+  Widget build(BuildContext context) {
+    final sent = p.ns('approval_sent_on');
+    final approved = p.ns('approved_on');
+    if (sent == null && approved == null) return const SizedBox.shrink();
+    final (bg, fg) = tintPair(approved != null ? Accent.ok : Accent.info, context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Row(children: [
+        Icon(approved != null ? Icons.verified_outlined : Icons.forward_to_inbox_outlined, size: 18, color: fg),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            approved != null
+                ? 'Customer approved: ${p.s('approved_by')} on $approved'
+                : 'Job packet sent for approval on $sent${p.ns('approval_sent_to') == null ? '' : ' to ${p.s('approval_sent_to')}'}',
+            style: TextStyle(color: fg),
+          ),
+        ),
+        if (approved == null)
+          TextButton(onPressed: () => _record(context), child: const Text('Record approval'))
+        else
+          TextButton(
+            onPressed: () async {
+              if (await confirm(context, 'Remove the recorded approval?', ok: 'Remove', danger: true) && context.mounted) {
+                clearApproval(context.db, p.id);
+              }
+            },
+            child: const Text('Undo'),
+          ),
+      ]),
+    );
+  }
+
+  Future<void> _record(BuildContext context) async {
+    final db = context.db;
+    final name = TextEditingController(text: p.s('customer'));
+    String? date = today();
+    final sentQuote = db.one(
+        "SELECT * FROM quotes WHERE project_id=? AND deleted=0 AND status='sent' ORDER BY updated_at DESC", [p.id]);
+    var accept = sentQuote != null;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setLocal) => AlertDialog(
+          title: const Text('Record approval'),
+          content: SizedBox(
+            width: 420,
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              TextField(controller: name, decoration: const InputDecoration(labelText: 'Approved by')),
+              const SizedBox(height: 8),
+              DateField(label: 'Date', value: date, onChanged: (v) => setLocal(() => date = v)),
+              if (sentQuote != null)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: accept,
+                  onChanged: (v) => setLocal(() => accept = v ?? false),
+                  title: Text('Also accept quote ${quoteLabel(sentQuote)}'),
+                ),
+              const Muted('Attach the signed copy under "All job files" (Quotes) so it is on file.', size: 12),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Record')),
+          ],
+        ),
+      ),
+    );
+    final by = name.text;
+    name.dispose();
+    if (ok != true || !context.mounted) return;
+    await attempt(context, () async {
+      recordApproval(db, p.id, by: by, on: date, acceptQuoteId: accept ? sentQuote?.id : null);
+    }, success: 'Approval recorded');
+  }
 }

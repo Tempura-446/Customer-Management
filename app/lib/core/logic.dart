@@ -10,6 +10,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
+import 'approval.dart';
 import 'checklist.dart';
 import 'db.dart';
 import 'orders.dart';
@@ -984,6 +985,10 @@ List<NextAction> nextActions(AppDb db, {bool prices = true}) {
   out.addAll(scheduleNextActions(db));
   if (!prices) return out;
   out.addAll(ordersNextActions(db));
+  for (final p in approvalsWaiting(db, olderThanDays: followup)) {
+    out.add(pa('follow up', p,
+        'Packet sent for approval ${p.s('approval_sent_on')}${p.ns('approval_sent_to') == null ? '' : ' to ${p.s('approval_sent_to')}'}: no approval yet'));
+  }
 
   for (final p in db.select("$pj AND p.status='designing' AND NOT EXISTS "
       "(SELECT 1 FROM quotes q WHERE q.project_id=p.id AND q.deleted=0 AND q.status<>'superseded')")) {

@@ -314,6 +314,8 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
   late final _folder = TextEditingController(text: _mail.folder);
   late final _minutes = TextEditingController(text: '${_mail.pollMinutes}');
   late final _days = TextEditingController(text: '${_mail.sinceDays}');
+  late final _smtpHost = TextEditingController(text: _mail.smtpHost);
+  late final _smtpPort = TextEditingController(text: '${_mail.smtpPort}');
   late bool _enabled = _mail.enabled || _mail.user.isEmpty;
   bool _hasPassword = false;
   bool _busy = false;
@@ -327,7 +329,7 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
 
   @override
   void dispose() {
-    for (final c in [_user, _password, _host, _port, _folder, _minutes, _days]) {
+    for (final c in [_user, _password, _host, _port, _folder, _minutes, _days, _smtpHost, _smtpPort]) {
       c.dispose();
     }
     super.dispose();
@@ -366,6 +368,8 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
         pollMinutes: int.tryParse(_minutes.text) ?? 5,
         sinceDays: int.tryParse(_days.text) ?? 14,
       );
+      _mail.saveSmtp(host: _smtpHost.text, port: int.tryParse(_smtpPort.text) ?? 465);
+      _smtpHost.text = _mail.smtpHost;
       _password.clear();
       _hasPassword = await _mail.hasPassword();
       if (mounted && !test) toast(context, 'Saved');
@@ -426,6 +430,17 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
             const SizedBox(height: 12),
             TextField(controller: _folder,
                 decoration: const InputDecoration(labelText: 'Folder / Gmail label', helperText: 'INBOX, or a label such as Measurements')),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                  flex: 3,
+                  child: TextField(
+                      controller: _smtpHost,
+                      decoration: const InputDecoration(
+                          labelText: 'Outgoing (SMTP) server', helperText: 'Used to email job packets to customers'))),
+              const SizedBox(width: 12),
+              Expanded(child: TextField(controller: _smtpPort, decoration: const InputDecoration(labelText: 'Port'))),
+            ]),
             const SizedBox(height: 12),
           ],
           Wrap(spacing: 8, runSpacing: 8, children: [

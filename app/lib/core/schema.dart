@@ -44,7 +44,9 @@ const syncTables = <String, String>{
     status TEXT NOT NULL DEFAULT 'lead',
     order_type TEXT,                        -- pickup | shipping | install (null = not decided yet)
     qb_list_id TEXT,                        -- QuickBooks job (Customer:Job) ListID once linked
-    qb_full_name TEXT''',
+    qb_full_name TEXT,
+    approval_sent_on TEXT, approval_sent_to TEXT, -- job packet sent to the customer to approve
+    approved_on TEXT, approved_by TEXT       -- customer approval (signature) recorded''',
   'measurements': '''
     project_id TEXT NOT NULL,
     room TEXT NOT NULL,
