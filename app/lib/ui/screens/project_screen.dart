@@ -247,7 +247,10 @@ class _DesignsCard extends StatelessWidget {
                                 (SELECT COUNT(*) FROM files f WHERE f.entity_type='design' AND f.entity_id=d.id AND f.deleted=0) nf
                               FROM designs d LEFT JOIN measurements m ON m.id=d.measurement_id
                               WHERE d.project_id=? AND d.deleted=0 ORDER BY d.version DESC''', [projectId]);
-    return Section(
+    return FileDropZone(
+      hint: 'Drop to add to a design',
+      onFiles: (dropped) => _dropOnDesigns(context, projectId, dropped),
+      child: Section(
       number: 2,
       title: 'Designs (2020)',
       action: TextButton.icon(
@@ -255,7 +258,11 @@ class _DesignsCard extends StatelessWidget {
           icon: const Icon(Icons.add, size: 18),
           label: const Text('New version')),
       child: Column(children: [
-        if (list.isEmpty) const Muted('Save each 2020 change as a new version (v1, v2…) with its .kit file, PDF and renders.'),
+        if (list.isEmpty)
+          Muted(Services.desktop
+              ? 'Save each 2020 change as a new version (v1, v2…) with its .kit file, PDF and renders. '
+                  'Tip: drag the PDF from 2020 or Explorer straight onto this card.'
+              : 'Save each 2020 change as a new version (v1, v2…) with its .kit file, PDF and renders.'),
         for (final d in list)
           ItemTile(
             dim: d.s('status') == 'superseded',
@@ -269,8 +276,72 @@ class _DesignsCard extends StatelessWidget {
             onTap: () => push(context, DesignScreen(designId: d.id)),
           ),
       ]),
+      ),
     );
   }
+}
+
+/// Files dropped on the Designs card: add them to the latest design, or start a new version.
+Future<void> _dropOnDesigns(BuildContext context, String projectId, List<DroppedFile> dropped) async {
+  final svc = context.svc;
+  final db = svc.db;
+  final latest = latestDesign(db, projectId);
+  String? target = latest?.id;
+  if (latest != null) {
+    final next = latest.i('version') + 1;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (c) => SimpleDialog(
+        title: Text('Add ${dropped.length == 1 ? dropped.first.$2 : '${dropped.length} files'} to…'),
+        children: [
+          SimpleDialogOption(
+              onPressed: () => Navigator.pop(c, 'new'),
+              child: ListTile(
+                  leading: const Icon(Icons.add), title: Text('New version v$next'), subtitle: const Text('A changed design'))),
+          SimpleDialogOption(
+              onPressed: () => Navigator.pop(c, 'latest'),
+              child: ListTile(
+                  leading: const Icon(Icons.architecture),
+                  title: Text('Design v${latest.i('version')}${latest.ns('title') != null ? ' · ${latest.s('title')}' : ''}'),
+                  subtitle: const Text('More files for the latest version'))),
+        ],
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    if (choice == 'new') target = null;
+  }
+  final ok = await attempt(context, () async {
+    db.tx(() {
+      // A new version keeps the measurements the previous one was drawn from.
+      target ??= saveDesign(db,
+          projectId: projectId,
+          measurementId: latest?.ns('measurement_id') ??
+              db.one('SELECT id FROM measurements WHERE project_id=? AND deleted=0 ORDER BY created_at DESC LIMIT 1',
+                  [projectId])?.id);
+      for (final (path, name) in dropped) {
+        svc.files.addFile(
+            projectId: projectId, sourcePath: path, name: name, category: 'designs', entityType: 'design', entityId: target);
+      }
+    });
+  });
+  if (ok && context.mounted) {
+    toast(context, '${dropped.length} file(s) added to design v${db.get('designs', target!)?.i('version') ?? '?'}');
+  }
+}
+
+/// Files dropped on the Quotes card: attached to the newest quote, or to the job's quotes.
+Future<void> _dropOnQuotes(BuildContext context, String projectId, List<DroppedFile> dropped) async {
+  final svc = context.svc;
+  final db = svc.db;
+  final q = db.one("SELECT * FROM quotes WHERE project_id=? AND deleted=0 AND status<>'superseded' ORDER BY created_at DESC LIMIT 1",
+      [projectId]);
+  await attempt(context, () async {
+    for (final (path, name) in dropped) {
+      svc.files.addFile(
+          projectId: projectId, sourcePath: path, name: name, category: 'quotes',
+          entityType: q == null ? null : 'quote', entityId: q?.id);
+    }
+  }, success: q == null ? '${dropped.length} file(s) filed with the job\'s quotes' : '${dropped.length} file(s) added to ${quoteLabel(q)}');
 }
 
 class _QuotesCard extends StatelessWidget {
@@ -281,7 +352,10 @@ class _QuotesCard extends StatelessWidget {
     final db = context.db;
     final list = db.select('''SELECT q.*, d.version AS d_version FROM quotes q LEFT JOIN designs d ON d.id=q.design_id
                               WHERE q.project_id=? AND q.deleted=0 ORDER BY q.created_at DESC''', [projectId]);
-    return Section(
+    return FileDropZone(
+      hint: 'Drop to file with the quote',
+      onFiles: (dropped) => _dropOnQuotes(context, projectId, dropped),
+      child: Section(
       number: 3,
       title: 'Quotes',
       action: TextButton.icon(
@@ -306,6 +380,7 @@ class _QuotesCard extends StatelessWidget {
             onTap: () => push(context, QuoteScreen(quoteId: q.id)),
           ),
       ]),
+      ),
     );
   }
 }

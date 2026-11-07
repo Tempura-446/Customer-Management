@@ -264,8 +264,15 @@ On first start, Windows asks how the computer will be used:
 
 To connect a workstation:
 
-1. On the main PC: **Devices → Add a phone or computer**, then pick the person who will use it.
+1. On the main PC: **Devices → Add a phone or computer**, then pick **Shared office computer** (or one person, for
+   a computer only they use).
 2. On the workstation: **Find the main office PC** (or type its address), then type the 8-character code.
+
+**Shared office computers.** Staff move between workstations freely. A shared computer shows the same sign-in as
+the main PC: tap your name, type your PIN, and **Sign out** when you're done. What you see follows your role, so
+installers never see prices there. Each change counts as made by whoever was signed in. PINs are kept on shared
+computers, so signing in works even while the main PC is off. A computer already connected to one person can be made
+shared from **Devices** (the people icon next to it), with no need to connect it again. Phones stay personal.
 
 You can change a computer's role later under **Settings → This computer**.
 
@@ -279,7 +286,14 @@ shows **"Edited on this computer – Save changes"** in the app. Click it and th
 next sync. The same button appears on the main PC when a file there is edited in place. Until you save, other
 computers keep the previous version. For a real design change, prefer a new design version (v2, v3…) so the history stays.
 
-A workstation is connected as one staff member, and everyone using it acts as that person.
+**Drag and drop.** On a computer, drag PDFs (or .kit files and renders) from 2020 or Explorer straight onto a job:
+
+- **Designs (2020) card:** asks whether it is a new version or more files for the latest one, and files it there.
+- **Quotes card:** attached to the newest quote, or filed with the job's quotes.
+- **QuickBooks card:** asks whether it is an estimate or an invoice.
+- **Any file list** (a design, a quote, an invoice, a measurement set, All job files) also accepts dropped files.
+
+The card lights up while a file is over it.
 
 ## Measurement emails (shared Gmail mailbox)
 

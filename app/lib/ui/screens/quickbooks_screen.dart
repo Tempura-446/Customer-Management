@@ -9,6 +9,7 @@ import '../../qb/qb_sync.dart';
 import '../../qb/qbwc_server.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
+import '../widgets/files_panel.dart';
 
 /// Settings › QuickBooks (main office PC, owner): connect QuickBooks Desktop through the Web Connector.
 class QuickBooksScreen extends StatefulWidget {
@@ -187,7 +188,10 @@ class QbEstimatesCard extends StatelessWidget {
     final db = context.db;
     final p = db.get('projects', projectId);
     final estimates = qbEstimatesFor(db, projectId);
-    return Section(
+    return FileDropZone(
+      hint: 'Drop QuickBooks PDFs',
+      onFiles: (dropped) => _file(context, dropped),
+      child: Section(
       title: 'QuickBooks',
       action: TextButton.icon(
         onPressed: () => _attach(context),
@@ -285,16 +289,21 @@ class QbEstimatesCard extends StatelessWidget {
           }),
         ],
         const SizedBox(height: 4),
-        const Muted('PDFs of QuickBooks quotes and invoices you attach here are filed with the job (hidden from field staff).',
+        const Muted('PDFs of QuickBooks quotes and invoices you attach or drag here are filed with the job (hidden from field staff).',
             size: 12),
       ]),
+      ),
     );
   }
 
   Future<void> _attach(BuildContext context) async {
-    final svc = context.svc;
     final picked = await FilePicker.pickFiles(dialogTitle: 'Attach QuickBooks estimate / invoice PDF');
     if (picked.isEmpty || !context.mounted) return;
+    await _file(context, [for (final f in picked) if (f.path != null) (f.path!, f.name)]);
+  }
+
+  Future<void> _file(BuildContext context, List<DroppedFile> picked) async {
+    final svc = context.svc;
     final kind = await showDialog<String>(
       context: context,
       builder: (c) => SimpleDialog(title: const Text('What is it?'), children: [
@@ -304,9 +313,8 @@ class QbEstimatesCard extends StatelessWidget {
     );
     if (kind == null || !context.mounted) return;
     await attempt(context, () async {
-      for (final f in picked) {
-        if (f.path == null) continue;
-        svc.files.addFile(projectId: projectId, sourcePath: f.path!, name: f.name, category: kind);
+      for (final (path, name) in picked) {
+        svc.files.addFile(projectId: projectId, sourcePath: path, name: name, category: kind);
       }
     }, success: '${picked.length} file(s) attached');
   }

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -37,6 +38,77 @@ Future<void> openFolder(String path) async {
   }
 }
 
+/// A file dragged in from Explorer: (full path, file name).
+typedef DroppedFile = (String, String);
+
+/// Desktop: lets people drag files (e.g. PDFs exported from 2020 or QuickBooks) from
+/// Explorer onto [child]. Highlights while a file is dragged over it. Phones: just [child].
+class FileDropZone extends StatefulWidget {
+  const FileDropZone({super.key, required this.child, required this.onFiles, this.hint = 'Drop files to add them'});
+  final Widget child;
+  final Future<void> Function(List<DroppedFile> files) onFiles;
+  final String hint;
+  @override
+  State<FileDropZone> createState() => _FileDropZoneState();
+}
+
+class _FileDropZoneState extends State<FileDropZone> {
+  bool _over = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Services.desktop) return widget.child;
+    final cs = Theme.of(context).colorScheme;
+    return DropTarget(
+      onDragEntered: (_) => setState(() => _over = true),
+      onDragExited: (_) => setState(() => _over = false),
+      onDragDone: (d) async {
+        setState(() => _over = false);
+        final dropped = <DroppedFile>[
+          for (final f in d.files)
+            if (f.path.isNotEmpty && FileSystemEntity.isFileSync(f.path)) (f.path, f.name.isEmpty ? f.path.split(RegExp(r'[\\/]')).last : f.name),
+        ];
+        if (dropped.isEmpty) {
+          if (context.mounted) toast(context, 'Only files can be dropped here (not folders).', error: true);
+          return;
+        }
+        await widget.onFiles(dropped);
+      },
+      child: Stack(children: [
+        widget.child,
+        if (_over)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: cs.primary.withValues(alpha: 0.10),
+                  border: Border.all(color: cs.primary, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.all(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(20)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.file_download_outlined, color: cs.onPrimary, size: 18),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(widget.hint,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: cs.onPrimary, fontWeight: FontWeight.w600)),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+      ]),
+    );
+  }
+}
+
 /// List + add files attached to a project or to one record in it.
 class FilesPanel extends StatelessWidget {
   const FilesPanel({
@@ -68,7 +140,10 @@ class FilesPanel extends StatelessWidget {
         final list = entityType == null
             ? svc.files.projectFiles(projectId, prices: svc.prices)
             : svc.files.filesFor(entityType!, entityId!);
-        return Section(
+        return FileDropZone(
+          hint: 'Drop to add to ${title.toLowerCase()}',
+          onFiles: (dropped) => _add(context, dropped),
+          child: Section(
           title: title,
           action: Wrap(spacing: 4, children: [
             if (!Services.desktop)
@@ -89,45 +164,53 @@ class FilesPanel extends StatelessWidget {
                   onPressed: () => openFolder(svc.files.projectFolder(projectId))),
           ]),
           child: list.isEmpty
-              ? const Muted('No files yet.')
+              ? Muted(Services.desktop ? 'No files yet. Drag files here from Explorer, or use the buttons above.' : 'No files yet.')
               : Column(children: [
                   for (final f in list) FileRow(f: f, showCategory: entityType == null),
                 ]),
+          ),
         );
       },
     );
   }
 
-  Future<String?> _chooseCategory(BuildContext context) async {
+  Future<String?> _chooseCategory(BuildContext context, {String hint = 'File type'}) async {
     if (!allowCategoryChoice) return category;
     return showDialog<String>(
       context: context,
       builder: (c) => SimpleDialog(
-        title: const Text('File type'),
+        title: Text(hint),
         children: [
           for (final cat in const ['photos', 'measurements', 'designs', 'quotes', 'invoices', 'other'])
             if (context.svc.prices || (cat != 'quotes' && cat != 'invoices'))
-              SimpleDialogOption(onPressed: () => Navigator.pop(c, cat), child: Text(cat)),
+              SimpleDialogOption(onPressed: () => Navigator.pop(c, cat), child: Text(cap(cat))),
         ],
       ),
     );
   }
 
   Future<void> _pick(BuildContext context) async {
-    final svc = context.svc;
     final picked = await FilePicker.pickFiles(dialogTitle: 'Attach files');
     if (picked.isEmpty || !context.mounted) return;
-    final cat = await _chooseCategory(context);
+    await _add(context, [for (final f in picked) if (f.path != null) (f.path!, f.name)]);
+  }
+
+  /// Add files picked or dropped: asks the file type (job files) and the room (photos).
+  Future<void> _add(BuildContext context, List<DroppedFile> picked) async {
+    final svc = context.svc;
+    if (picked.isEmpty) return;
+    final cat = picked.every((f) => f.$2.toLowerCase().endsWith('.pdf')) && allowCategoryChoice
+        ? await _chooseCategory(context, hint: 'What are these PDFs?')
+        : await _chooseCategory(context);
     if (cat == null || !context.mounted) return;
-    final anyImage = picked.any((f) => FileStore.isImage(f.name));
+    final anyImage = picked.any((f) => FileStore.isImage(f.$2));
     final room = this.room ?? (anyImage && (cat == 'photos' || cat == 'measurements') ? await pickRoom(context, projectId) : null);
     if (room == _cancelled || !context.mounted) return;
     await attempt(context, () async {
-      for (final f in picked) {
-        if (f.path == null) continue;
+      for (final (path, name) in picked) {
         svc.files.addFile(
-            projectId: projectId, sourcePath: f.path!, name: f.name, category: cat,
-            entityType: entityType, entityId: entityId, room: FileStore.isImage(f.name) ? room : null);
+            projectId: projectId, sourcePath: path, name: name, category: cat,
+            entityType: entityType, entityId: entityId, room: FileStore.isImage(name) ? room : null);
       }
     }, success: '${picked.length} file(s) added');
   }
