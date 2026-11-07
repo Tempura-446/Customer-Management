@@ -71,7 +71,7 @@ void main() {
     expect(db.get('projects', pid)!.s('status'), 'approved', reason: 'paid in full, but not installed yet');
     markCompleted(db, pid);
     expect(db.get('projects', pid)!.s('status'), 'paid');
-    expect(projectWarnings(db, pid), isEmpty);
+    expect(projectWarnings(db, pid).where((w) => !w.message.contains('checklist')), isEmpty);
   });
 
   test('PIN hashing', () {
@@ -107,7 +107,8 @@ void main() {
     expect(m.s('source'), 'photo');
     expect(m.b('verified'), isFalse);
     // A photo guess warns even before there is a design.
-    expect(projectWarnings(db, pid).single.message, contains('guessed from photos'));
+    expect(projectWarnings(db, pid).where((w) => !w.message.contains('checklist')).single.message,
+        contains('guessed from photos'));
     saveMeasurement(db, projectId: pid, room: 'Laundry', source: 'plans', lines: []);
     saveDesign(db, projectId: pid, title: 'v1');
     expect(projectWarnings(db, pid).any((w) => w.message.contains('from plans')), isTrue);

@@ -8,6 +8,7 @@ import 'package:printing/printing.dart';
 
 import '../core/branding.dart';
 import '../core/db.dart';
+import '../core/checklist.dart';
 import '../core/logic.dart';
 import '../core/orders.dart';
 import '../qb/qb_sync.dart';

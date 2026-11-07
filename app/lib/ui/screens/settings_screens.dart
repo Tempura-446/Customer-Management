@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../../core/branding.dart';
+import '../../core/checklist.dart';
 import '../../core/db.dart';
 import '../../core/device_mode.dart';
 import '../../core/logic.dart';
@@ -172,6 +173,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: const Text('Customers & jobs to QuickBooks, estimates back to jobs'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => push(context, QuickBooksScreen(qbwc: svc.qbwc!, port: svc.hub!.port ?? defaultSyncPort)),
+            ),
+          ),
+        if (svc.prices)
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: const Icon(Icons.checklist),
+              title: const Text('Measurement checklists'),
+              subtitle: const Text('What the tech must measure in each kind of room. Blank items are flagged before ordering.'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => push(context, const ChecklistsScreen()),
             ),
           ),
         if (svc.prices)
@@ -528,6 +540,116 @@ class _LogoPicker extends StatelessWidget {
           Expanded(child: details),
         ]);
       },
+    );
+  }
+}
+
+/// Office: edit the per-room measurement checklists (one item per line).
+class ChecklistsScreen extends StatefulWidget {
+  const ChecklistsScreen({super.key});
+  @override
+  State<ChecklistsScreen> createState() => _ChecklistsScreenState();
+}
+
+class _ChecklistsScreenState extends State<ChecklistsScreen> {
+  final _rooms = <(TextEditingController, TextEditingController)>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    for (final (a, b) in _rooms) {
+      a.dispose();
+      b.dispose();
+    }
+    _rooms
+      ..clear()
+      ..addAll([
+        for (final e in measurementChecklists(context.db).entries)
+          (TextEditingController(text: e.key), TextEditingController(text: e.value.join('\n'))),
+      ]);
+  }
+
+  @override
+  void dispose() {
+    for (final (a, b) in _rooms) {
+      a.dispose();
+      b.dispose();
+    }
+    super.dispose();
+  }
+
+  void _save() {
+    final names = _rooms.map((r) => r.$1.text.trim().toLowerCase()).where((n) => n.isNotEmpty).toList();
+    if (names.toSet().length != names.length) {
+      toast(context, 'Two checklists have the same room name.', error: true);
+      return;
+    }
+    saveMeasurementChecklists(context.db, {
+      for (final (name, items) in _rooms) name.text: items.text.split('\n'),
+    });
+    toast(context, 'Checklists saved: phones get them at the next sync');
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Measurement checklists'), actions: [
+        TextButton(
+          onPressed: () async {
+            if (await confirm(context, 'Put back the built-in checklists? Your changes are lost.', ok: 'Reset', danger: true) &&
+                context.mounted) {
+              resetMeasurementChecklists(context.db);
+              setState(_load);
+            }
+          },
+          child: const Text('Reset'),
+        ),
+      ]),
+      body: PageBody(maxWidth: 720, children: [
+        const Muted('A measurement set uses the checklist whose name is in its room name: "Kitchen 2" and '
+            '"Main kitchen" both use Kitchen. Items left blank are flagged on the job and in the job packet.'),
+        const SizedBox(height: 12),
+        for (final (i, (name, items)) in _rooms.indexed)
+          Section(
+            title: name.text.isEmpty ? 'New room' : name.text,
+            action: IconButton(
+              tooltip: 'Remove this checklist',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => setState(() {
+                final r = _rooms.removeAt(i);
+                r.$1.dispose();
+                r.$2.dispose();
+              }),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Room'),
+                  onChanged: (_) => setState(() {})),
+              const SizedBox(height: 8),
+              TextField(
+                controller: items,
+                minLines: 4,
+                maxLines: 14,
+                decoration: const InputDecoration(labelText: 'Items, one per line', alignLabelWithHint: true),
+              ),
+            ]),
+          ),
+        Row(children: [
+          TextButton.icon(
+            onPressed: () => setState(() => _rooms.add((TextEditingController(), TextEditingController()))),
+            icon: const Icon(Icons.add),
+            label: const Text('Add room'),
+          ),
+          const Spacer(),
+          FilledButton(onPressed: _save, child: const Text('Save')),
+        ]),
+      ]),
     );
   }
 }

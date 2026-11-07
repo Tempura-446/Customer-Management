@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/checklist.dart';
 import '../../core/logic.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
@@ -82,8 +83,9 @@ class _MeasurementFormScreenState extends State<MeasurementFormScreen> {
         if (l.empty) l.dispose();
         return l.empty;
       });
-      for (final label in measurementPresets[name]!) {
-        _lines.add(_Line(label, '', _unit));
+      final have = {for (final l in _lines) l.label.text.trim().toLowerCase()};
+      for (final label in measurementChecklists(context.db)[name] ?? const <String>[]) {
+        if (!have.contains(label.toLowerCase())) _lines.add(_Line(label, '', _unit));
       }
       if (_room.text.isEmpty) _room.text = name;
     });
@@ -190,7 +192,7 @@ class _MeasurementFormScreenState extends State<MeasurementFormScreen> {
         ]),
         Wrap(spacing: 6, children: [
           const Padding(padding: EdgeInsets.only(top: 8), child: Muted('Checklist: ')),
-          for (final k in measurementPresets.keys) ActionChip(label: Text(k), onPressed: () => _preset(k)),
+          for (final k in measurementChecklists(context.db).keys) ActionChip(label: Text(k), onPressed: () => _preset(k)),
         ]),
         const SizedBox(height: 8),
         for (final (i, l) in _lines.indexed)
@@ -275,6 +277,8 @@ class MeasurementScreen extends StatelessWidget {
         if (m == null) return const DeletedScreen('This measurement');
         final p = projectWithCustomer(db, m.s('project_id'))!;
         final items = measurementItems(db, measurementId);
+        final missing = missingMeasurements(db, measurementId);
+        final checklist = checklistForRoom(db, m.s('room'));
         final designs = db.select('SELECT * FROM designs WHERE measurement_id=? AND deleted=0 ORDER BY version', [measurementId]);
         return Scaffold(
           appBar: AppBar(title: Text('${m.s('room')} measurements'), actions: [
@@ -304,6 +308,7 @@ class MeasurementScreen extends StatelessWidget {
                 FilledButton.tonalIcon(
                     onPressed: () async {
                       if (await confirm(context,
+                          '${missing.isEmpty ? '' : '${missing.length} checklist item(s) are still blank: ${missing.join(', ')}.\n\n'}'
                           'Confirm these measurements were checked on site (or against a tech measurement)?',
                           ok: 'Mark verified')) {
                         verifyMeasurement(db, measurementId);
@@ -319,6 +324,8 @@ class MeasurementScreen extends StatelessWidget {
             const SizedBox(height: 12),
             if (sourceOf(m.s('source')).risk >= 2 && !m.b('verified'))
               const WarnBanner('Guessed from photos: use for a ballpark design and price only. Measure on site before ordering.'),
+            if (missing.isNotEmpty)
+              WarnBanner('Not measured yet (${checklist!.$1} checklist): ${missing.join(', ')}'),
             TwoCol(
               left: Section(
                 title: 'Dimensions',

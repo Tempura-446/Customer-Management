@@ -189,6 +189,12 @@ Future<Uint8List> jobPacketPdf(AppDb db, String projectId, PacketOptions o,
                 ]),
             ]),
           if (m.ns('notes') != null) pw.Padding(padding: const pw.EdgeInsets.only(top: 4), child: pw.Text(m.s('notes'))),
+          if (missingMeasurements(db, m.id) case final missing when missing.isNotEmpty)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 4),
+              child: pw.Text('Not measured yet: ${missing.join(', ')}',
+                  style: pw.TextStyle(color: PdfColors.red800, fontWeight: pw.FontWeight.bold)),
+            ),
         ]),
       );
       body.add(keep ? pw.Inseparable(child: block) : block);

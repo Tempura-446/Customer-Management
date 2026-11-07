@@ -10,6 +10,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
+import 'checklist.dart';
 import 'db.dart';
 import 'orders.dart';
 import '../qb/qb_sync.dart';
@@ -911,6 +912,13 @@ List<Warning> projectWarnings(AppDb db, String projectId, {bool prices = true}) 
         if (ot.key == 'shipping' && !hasDelivery) w.add(Warning(false, 'Shipping order, but $ref has no delivery / shipping line.'));
       }
     }
+  }
+  for (final m in meas) {
+    final missing = missingMeasurements(db, m.id);
+    if (missing.isEmpty) continue;
+    final shown = missing.take(4).join(', ');
+    w.add(Warning(designs.isNotEmpty || acc != null,
+        '${m.s('room')}: ${missing.length} checklist item(s) not measured: $shown${missing.length > 4 ? ' and ${missing.length - 4} more' : ''}.'));
   }
   if (designs.isNotEmpty && meas.isEmpty) w.add(Warning(true, 'Design exists with no measurements on file.'));
   for (final d in designs) {
