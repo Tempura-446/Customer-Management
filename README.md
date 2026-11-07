@@ -60,6 +60,20 @@ design and quote it feeds:
 Anything that isn't our own on-site measure shows **not verified** until someone ticks **Verified on site** (or clicks
 **Mark verified on site**). Approved jobs with unverified numbers appear in **Next actions → Verify**.
 
+### Measurement checklists
+
+**Settings → Measurement checklists** (office). Each kind of room has a list of what the tech must measure: Kitchen,
+Bathroom, Closet and Laundry to start with, and any you add. A measurement set uses the list whose name is in its room
+("Kitchen 2" and "Main kitchen" use Kitchen). Items left blank are listed on the measurement set, warned about on the
+job, mentioned when someone marks the measurements verified, and printed in red in the job packet. The lists sync to
+every phone.
+
+### Photos by room
+
+Adding photos to a job asks which room they show (the job's measurement rooms are offered, or type another).
+Photos added on a measurement set take its room. Each photo shows its room and has a tag button to change it. A
+measurement set also shows the job's other photos of that room, and the job packet groups site photos by room.
+
 ## Order type: pickup, shipping or installation
 
 Every job has an order type, chosen on the job form or from the badge next to the job number:
@@ -104,6 +118,17 @@ Details:
   with the quotes, so field staff never receive them.
 - **Field staff** can only print the production packet.
 
+### Customer approval
+
+On the customer packet, **Email to customer for approval** sends the packet from the shared measurement mailbox on
+the main PC (Gmail uses the same app password; another mail server can be set under **Measurement email → Advanced**).
+You can edit the recipients, subject and message first. On other devices it opens the phone's or PC's share sheet.
+Either way the job shows "sent for approval" and keeps a copy of what was sent.
+
+When the signed page comes back, click **Record approval** on the job: who approved and when, and optionally accept
+the quote at the same time. Sending a newer packet clears the old approval. A packet that waits longer than the quote
+follow-up days shows up in **Next actions**.
+
 ### Stronger PDFs with ZPDF (optional)
 
 If **ZPDF** (the PDF-Manager toolkit) is installed on a computer, Casework finds it and uses it:
@@ -132,6 +157,25 @@ or by kind: site measure, delivery, customer pickup, installation, service.
 - **Mark done** on an installation, delivery or pickup moves the job to *Installed / Delivered / Picked up*.
 - **Next actions** reminds you to book the site measure for new leads, to book the install, delivery or pickup once
   materials are in, to confirm appointments in the next 2 days, and to mark past appointments done.
+
+### Reminders
+
+- **Phones:** each person's appointments the evening before (5 PM) and an hour before, even when the app is closed.
+  They update after every sync.
+- **Computers:** the same while Casework is open, plus a **Good morning** summary at 7:30: today's appointments,
+  unassigned ones this week, next actions and emails to file.
+- **Off switch:** each device can turn reminders off under **Settings → Reminders on this device**.
+
+## Reports
+
+**Reports** (owner and office): the last 12 months, this year so far, or last year.
+
+- **Quotes:** sent and their value, won and lost, and the win rate.
+- **Speed:** average days from the first measurement to the quote, and from quote to decision.
+- **Money:** payments collected, and open quotes still waiting on customers.
+- **Breakdowns:** a table by month and one by order type.
+
+QuickBooks estimates and payments count the same way as Casework's own.
 
 ## Supplier orders and production
 
@@ -164,6 +208,10 @@ backs up every day while the app is open:
 `cabinet_crm.before-restore-….db`. **Restore missing files** copies back any job files that have gone missing. The
 dashboard warns the owner when backups are not set up or have not run for 3 days.
 
+**Weekly check:** once a week Casework test-opens the newest database copy the way a restore would, runs SQLite's
+integrity check, and checks every job file is in the backup folder. A problem shows on the dashboard. **Check latest
+backup** runs it on demand.
+
 ## QuickBooks Desktop (Enterprise 14)
 
 **Settings → QuickBooks** (main PC, owner). Casework connects to QuickBooks through Intuit's **Web Connector**,
@@ -177,10 +225,13 @@ which comes with QuickBooks:
 - **Estimates → jobs.** Estimates made in QuickBooks appear on the job with number, total and lines. They feed the job
   packet, supplier-order lines and the order-type checks. A new estimate moves the job to *Quoted*; once it's turned
   into a sales order or invoice, to *Approved*.
+- **Invoices and payments → jobs.** Invoices and customer payments entered in QuickBooks appear on the job: paid or
+  open, due date, amount still owed, payments with method. Once every invoice is paid and the work is done, the job
+  moves to *Paid*. The dashboard's *Receivable* and the Reports page include them.
 - **Quotes & invoices are done in QuickBooks** (switch on that page): jobs then show the QuickBooks estimates card
   instead of Casework's quote and invoice cards. Use **Attach QuickBooks PDF** to file the PDFs of your QuickBooks
   quotes and invoices with the job.
-- **QuickBooks is never changed beyond adding customers and jobs.**
+- **QuickBooks is never changed beyond adding customers and jobs.** Estimates, invoices and payments are only read.
 
 **Setup:**
 
@@ -270,7 +321,10 @@ Details:
 - **New jobs, quotes and invoices made on a phone or workstation** show "pending" until the next sync. The main PC
   then gives them their J-/Q-/INV- number.
 - **Phones upload photos.** They download PDFs and 2020 files only when you tap them.
-- **If two devices edit the same record,** the most recent edit wins.
+- **If two people edit the same record between syncs,** both edits are kept when they changed different fields
+  (say one fixed the phone number and the other the email). When both changed the *same* field, the newer edit wins
+  and the job shows an **Edit conflict** warning saying who changed what and which value was kept, until someone
+  clicks **Mark checked** under Notes.
 - **Lost a phone, or retiring a PC?** Remove it under **Devices** and its access stops at once.
 - **Windows Firewall:** the installer allows the app on **private** networks only. Make sure the office network is set to
   *Private* on the main PC (Settings → Network & internet → your network → Private network).
