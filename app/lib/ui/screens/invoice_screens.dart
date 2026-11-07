@@ -78,15 +78,15 @@ class _InvoiceNewScreenState extends State<InvoiceNewScreen> {
         Section(
           title: 'Invoice',
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            SegmentedButton<String>(
-              segments: [
-                ButtonSegment(value: 'deposit', label: Text('Deposit (${fmtQty(q.d('deposit_pct'))}%)')),
-                const ButtonSegment(value: 'progress', label: Text('Progress')),
-                const ButtonSegment(value: 'final', label: Text('Final / balance')),
+            Choices<String>(
+              options: [
+                ('deposit', 'Deposit (${fmtQty(q.d('deposit_pct'))}%)', null),
+                ('progress', 'Progress', null),
+                ('final', 'Final / balance', null),
               ],
-              selected: {kind},
-              onSelectionChanged: (s) => setState(() {
-                kind = s.first;
+              value: kind,
+              onChanged: (v) => setState(() {
+                kind = v;
                 _suggest();
               }),
             ),
@@ -160,9 +160,9 @@ class InvoiceScreen extends StatelessWidget {
         final status = i.s('status');
 
         final actions = Wrap(spacing: 8, runSpacing: 8, children: [
-          OutlinedButton.icon(
-            icon: const Icon(Icons.picture_as_pdf_outlined),
-            label: const Text('PDF'),
+          AsyncButton(
+            icon: Icons.picture_as_pdf_outlined,
+            label: 'PDF',
             onPressed: () async {
               final bytes = await invoicePdf(db, invoiceId);
               if (!context.mounted) return;
@@ -197,7 +197,7 @@ class InvoiceScreen extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             KeyValues([
               ('Quote', quoteLabel(q)),
-              ('Kind', i.s('kind')),
+              ('Kind', cap(i.s('kind'))),
               ('Amount', fmtMoney(i.d('amount'))),
               ('Paid', fmtMoney(paid)),
               ('Balance', fmtMoney(balance)),

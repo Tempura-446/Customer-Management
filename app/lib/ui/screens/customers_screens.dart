@@ -174,7 +174,7 @@ class CustomerDetailScreen extends StatelessWidget {
       db: db,
       builder: (context) {
         final c = db.get('customers', customerId);
-        if (c == null) return const Scaffold(body: Center(child: Text('Customer was deleted.')));
+        if (c == null) return const DeletedScreen('This customer');
         final jobs = projectsList(db, customerId: customerId);
         return Scaffold(
           appBar: AppBar(title: Text(c.s('name')), actions: [
@@ -190,7 +190,7 @@ class CustomerDetailScreen extends StatelessWidget {
                   if (context.mounted) Navigator.pop(context);
                 }
               },
-              itemBuilder: (_) => [const PopupMenuItem(value: 'delete', child: Text('Delete customer'))],
+              itemBuilder: (c) => [dangerItem(c, 'delete', 'Delete customer')],
             ),
           ]),
           floatingActionButton: FloatingActionButton.extended(

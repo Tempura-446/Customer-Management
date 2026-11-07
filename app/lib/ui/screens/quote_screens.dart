@@ -371,9 +371,9 @@ class QuoteScreen extends StatelessWidget {
         final billing = status == 'accepted' ? quoteBilling(db, quoteId) : null;
 
         final actions = Wrap(spacing: 8, runSpacing: 8, children: [
-          OutlinedButton.icon(
-            icon: const Icon(Icons.picture_as_pdf_outlined),
-            label: const Text('PDF'),
+          AsyncButton(
+            icon: Icons.picture_as_pdf_outlined,
+            label: 'PDF',
             onPressed: () async {
               final bytes = await quotePdf(db, quoteId);
               if (!context.mounted) return;

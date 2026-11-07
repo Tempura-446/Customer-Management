@@ -151,7 +151,7 @@ class DesignScreen extends StatelessWidget {
       db: db,
       builder: (context) {
         final d = db.get('designs', designId);
-        if (d == null) return const Scaffold(body: Center(child: Text('Deleted.')));
+        if (d == null) return const DeletedScreen('This design');
         final p = projectWithCustomer(db, d.s('project_id'))!;
         final m = db.get('measurements', d.ns('measurement_id'));
         final quotes = svc.prices
@@ -170,7 +170,7 @@ class DesignScreen extends StatelessWidget {
                   if (context.mounted) Navigator.pop(context);
                 }
               },
-              itemBuilder: (_) => [const PopupMenuItem(value: 'd', child: Text('Delete'))],
+              itemBuilder: (c) => [dangerItem(c, 'd', 'Delete design')],
             ),
           ]),
           body: PageBody(children: [

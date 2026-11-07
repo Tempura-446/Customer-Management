@@ -31,7 +31,7 @@ class ProjectScreen extends StatelessWidget {
       db: db,
       builder: (context) {
         final p = projectWithCustomer(db, projectId);
-        if (p == null) return const Scaffold(body: Center(child: Text('This job was deleted.')));
+        if (p == null) return const DeletedScreen('This job');
         final prices = svc.prices;
         return Scaffold(
           appBar: AppBar(
@@ -39,7 +39,7 @@ class ProjectScreen extends StatelessWidget {
             actions: [
               Padding(
                 padding: const EdgeInsets.only(right: 4),
-                child: (stageKeys.indexOf(p.s('status')) >= stageKeys.indexOf('approved'))
+                child: (isWide(context) && stageKeys.indexOf(p.s('status')) >= stageKeys.indexOf('approved'))
                     ? FilledButton.tonalIcon(
                         onPressed: () => push(context, PacketScreen(projectId: projectId)),
                         icon: const Icon(Icons.print_outlined),
@@ -64,10 +64,10 @@ class ProjectScreen extends StatelessWidget {
                     if (context.mounted) Navigator.pop(context);
                   }
                 },
-                itemBuilder: (_) => [
+                itemBuilder: (c) => [
                   const PopupMenuItem(value: 'customer', child: Text('Open customer')),
                   if (svc.isHub) const PopupMenuItem(value: 'folder', child: Text('Open job folder')),
-                  const PopupMenuItem(value: 'delete', child: Text('Delete job')),
+                  dangerItem(c, 'delete', 'Delete job'),
                 ],
               ),
             ],

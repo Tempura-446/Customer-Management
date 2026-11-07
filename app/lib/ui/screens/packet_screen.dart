@@ -86,15 +86,14 @@ class _PacketScreenState extends State<PacketScreen> {
     return Scaffold(
       appBar: AppBar(title: Text('Job packet · ${numberOf(p)} ${p.s('customer')}')),
       body: PageBody(maxWidth: 720, children: [
-        SegmentedButton<String>(
-          segments: [
-            if (svc.prices)
-              const ButtonSegment(value: 'customer', icon: Icon(Icons.person_outline), label: Text('Customer')),
-            const ButtonSegment(value: 'production', icon: Icon(Icons.handyman_outlined), label: Text('Production / install')),
-            if (svc.prices) const ButtonSegment(value: 'office', icon: Icon(Icons.folder_outlined), label: Text('Office file')),
+        Choices<String>(
+          options: [
+            if (svc.prices) ('customer', 'Customer', Icons.person_outline),
+            ('production', 'Production / install', Icons.handyman_outlined),
+            if (svc.prices) ('office', 'Office file', Icons.folder_outlined),
           ],
-          selected: {_preset},
-          onSelectionChanged: (s) => setState(() => _apply(s.first)),
+          value: _preset,
+          onChanged: (v) => setState(() => _apply(v)),
         ),
         const SizedBox(height: 8),
         Muted(switch (_preset) {

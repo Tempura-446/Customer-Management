@@ -172,7 +172,7 @@ class _ApptCard extends StatelessWidget {
     final k = kindOf(a.s('kind'));
     final start = parseStart(a.s('starts_at'));
     final end = start?.add(Duration(minutes: a.i('duration_min')));
-    final time = start == null ? '' : '${DateFormat('HH:mm').format(start)}–${DateFormat('HH:mm').format(end!)}';
+    final time = start == null ? '' : '${fmtTime(start)}–${fmtTime(end!)}';
     final done = a.s('status') == 'done';
     return Opacity(
       opacity: done || a.s('status') == 'cancelled' ? 0.55 : 1,

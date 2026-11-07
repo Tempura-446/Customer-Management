@@ -47,7 +47,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _load();
+    if (_ctrl.isEmpty) _load(); // once: a sync must not wipe what the user is typing
   }
 
   void _load() {
@@ -467,8 +467,7 @@ class _LogoPicker extends StatelessWidget {
         final s = settings(svc.db);
         final has = businessLogo(s) != null;
         final canEdit = svc.isOwner || svc.prices;
-        return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          Container(
+        final preview = Container(
             width: 200,
             height: 80,
             padding: const EdgeInsets.all(8),
@@ -480,10 +479,8 @@ class _LogoPicker extends StatelessWidget {
             child: has
                 ? BusinessLogo(settings: s, height: 64, maxWidth: 184)
                 : const Center(child: Muted('No logo yet', size: 12)),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          );
+        final details = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Logo', style: TextStyle(fontWeight: FontWeight.w600)),
               const Muted('Printed at the top of quotes, invoices, job packets and purchase orders. '
                   'PNG with a transparent background looks best.', size: 12),
@@ -504,7 +501,14 @@ class _LogoPicker extends StatelessWidget {
                     label: Text(has ? 'Change logo' : 'Choose logo'),
                   ),
                   if (has)
-                    TextButton(onPressed: () => removeBusinessLogo(svc.db), child: const Text('Remove')),
+                    TextButton(
+                        onPressed: () async {
+                          if (await confirm(context, 'Remove the logo? Documents will print without it.',
+                              ok: 'Remove logo', danger: true)) {
+                            removeBusinessLogo(svc.db);
+                          }
+                        },
+                        child: const Text('Remove logo')),
                 ]),
               if (has)
                 CheckboxListTile(
@@ -514,8 +518,14 @@ class _LogoPicker extends StatelessWidget {
                   onChanged: canEdit ? (v) => setSetting(svc.db, 'logo_has_name', v == true ? '1' : '0') : null,
                   title: const Text("My logo already shows our name (don't print it twice)"),
                 ),
-            ]),
-          ),
+            ]);
+        if (!isWide(context)) {
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [preview, const SizedBox(height: 12), details]);
+        }
+        return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          preview,
+          const SizedBox(width: 16),
+          Expanded(child: details),
         ]);
       },
     );

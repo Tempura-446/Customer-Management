@@ -193,7 +193,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
       db: db,
       builder: (context) {
         final po = orderWithSupplier(db, widget.poId);
-        if (po == null) return const Scaffold(body: Center(child: Text('Deleted.')));
+        if (po == null) return const DeletedScreen('This purchase order');
         final p = projectWithCustomer(db, po.s('project_id'))!;
         final status = po.s('status');
         final draft = status == 'draft';
@@ -227,9 +227,9 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                     if (context.mounted) Navigator.pop(context);
                   }
                 },
-                itemBuilder: (_) => [
-                  if (draft) const PopupMenuItem(value: 'delete', child: Text('Delete draft')),
-                  if (!draft && status != 'cancelled') const PopupMenuItem(value: 'cancel', child: Text('Cancel order')),
+                itemBuilder: (c) => [
+                  if (draft) dangerItem(c, 'delete', 'Delete draft'),
+                  if (!draft && status != 'cancelled') dangerItem(c, 'cancel', 'Cancel order'),
                 ],
               ),
             ],
@@ -244,6 +244,12 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 FilledButton.icon(
                   onPressed: () async {
                     if (!await _save(quiet: true) || !context.mounted) return;
+                    if (!await confirm(context,
+                        'Mark this order as sent to the supplier? The lines can no longer be changed afterwards.',
+                        ok: 'Mark ordered')) {
+                      return;
+                    }
+                    if (!context.mounted) return;
                     await attempt(context, () async => markOrdered(db, widget.poId), success: 'Marked as ordered');
                   },
                   icon: const Icon(Icons.send),
@@ -299,13 +305,13 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'shop', icon: Icon(Icons.store_outlined), label: Text('Deliver to our shop')),
-                    ButtonSegment(value: 'site', icon: Icon(Icons.home_outlined), label: Text('Ship to the job site')),
+                Choices<String>(
+                  options: const [
+                    ('shop', 'Deliver to our shop', Icons.store_outlined),
+                    ('site', 'Ship to the job site', Icons.home_outlined),
                   ],
-                  selected: {_deliverTo ?? 'shop'},
-                  onSelectionChanged: (s) => setState(() => _deliverTo = s.first),
+                  value: _deliverTo ?? 'shop',
+                  onChanged: (v) => setState(() => _deliverTo = v),
                 ),
                 const SizedBox(height: 12),
                 TextField(controller: _notes, maxLines: 3, decoration: const InputDecoration(labelText: 'Notes for the supplier')),
@@ -323,7 +329,8 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                 for (final (i, l) in _lines.indexed)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    child: Column(children: [
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       SizedBox(
                         width: 70,
                         child: TextField(
@@ -356,8 +363,18 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
                       ],
                       if (draft)
                         IconButton(
+                            tooltip: 'Remove line',
                             icon: const Icon(Icons.close, size: 18),
                             onPressed: () => setState(() => _lines.removeAt(i).dispose())),
+                    ]),
+                    if (!isWide(context) && (draft || l.notes.text.isNotEmpty))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: TextField(
+                            controller: l.notes,
+                            enabled: draft,
+                            decoration: const InputDecoration(labelText: 'Notes', isDense: true)),
+                      ),
                     ]),
                   ),
                 if (draft)

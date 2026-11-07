@@ -271,7 +271,7 @@ class MeasurementScreen extends StatelessWidget {
       db: db,
       builder: (context) {
         final m = db.get('measurements', measurementId);
-        if (m == null) return const Scaffold(body: Center(child: Text('Deleted.')));
+        if (m == null) return const DeletedScreen('This measurement');
         final p = projectWithCustomer(db, m.s('project_id'))!;
         final items = measurementItems(db, measurementId);
         final designs = db.select('SELECT * FROM designs WHERE measurement_id=? AND deleted=0 ORDER BY version', [measurementId]);
@@ -288,7 +288,7 @@ class MeasurementScreen extends StatelessWidget {
                   if (context.mounted) Navigator.pop(context);
                 }
               },
-              itemBuilder: (_) => [const PopupMenuItem(value: 'd', child: Text('Delete'))],
+              itemBuilder: (c) => [dangerItem(c, 'd', 'Delete measurements')],
             ),
           ]),
           body: PageBody(children: [
@@ -301,7 +301,13 @@ class MeasurementScreen extends StatelessWidget {
               Text('${m.ns('taken_by') != null ? 'by ${m.s('taken_by')} · ' : ''}${m.ns('taken_on') ?? fmtDate(m.s('created_at'))}'),
               if (!m.b('verified') && sourceOf(m.s('source')).needsVerify)
                 FilledButton.tonalIcon(
-                    onPressed: () => verifyMeasurement(db, measurementId),
+                    onPressed: () async {
+                      if (await confirm(context,
+                          'Confirm these measurements were checked on site (or against a tech measurement)?',
+                          ok: 'Mark verified')) {
+                        verifyMeasurement(db, measurementId);
+                      }
+                    },
                     icon: const Icon(Icons.check),
                     label: const Text('Mark verified')),
               FilledButton.icon(

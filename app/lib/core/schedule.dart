@@ -39,7 +39,7 @@ String _two(int n) => n.toString().padLeft(2, '0');
 
 DateTime? parseStart(String? s) => s == null ? null : DateTime.tryParse(s);
 
-String _when(DateTime d) => DateFormat('EEE d MMM HH:mm').format(d);
+String _when(DateTime d) => DateFormat('EEE MMM d, h:mm a').format(d);
 
 String saveAppointment(AppDb db,
     {String? id,

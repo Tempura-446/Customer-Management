@@ -226,7 +226,7 @@ class PhoneSyncScreen extends StatelessWidget {
           final pending = c.pendingChanges();
           return PageBody(maxWidth: 600, children: [
             Section(
-              title: 'Office PC',
+              title: 'Main office PC',
               child: KeyValues([
                 ('Synced with', c.hubName ?? '-'),
                 ('Signed in as', '${svc.user?.s('name') ?? '-'} (${svc.role})'),
@@ -248,7 +248,8 @@ class PhoneSyncScreen extends StatelessWidget {
             const SizedBox(height: 12),
             const Muted(
                 'Work offline on site as usual. Everything syncs automatically when you are back on the shop '
-                'Wi-Fi with the PC app open (on start, every 5 minutes and when you reopen the app).',
+                'Wi-Fi with the main office PC app open: when the app starts, about every minute while open, '
+                'and when you come back to it.',
                 size: 12),
             const SizedBox(height: 24),
             OutlinedButton.icon(

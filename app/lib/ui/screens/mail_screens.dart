@@ -228,9 +228,13 @@ class _MailCard extends StatelessWidget {
       ),
     );
     if (ok != true || !context.mounted) return;
+    final values = (name.text.trim(), phone.text.trim(), title.text.trim(), address.text);
+    for (final c in [name, phone, title, address]) {
+      c.dispose();
+    }
     await attempt(context, () async {
       final pid = createJobFromMail(context.db, context.svc.files, item.id,
-          customerName: name.text.trim(), phone: phone.text.trim(), title: title.text.trim(), address: address.text);
+          customerName: values.$1, phone: values.$2, title: values.$3, address: values.$4);
       if (context.mounted) push(context, ProjectScreen(projectId: pid));
     });
   }
@@ -266,7 +270,7 @@ class _JobPickerState extends State<_JobPicker> {
       title: Text(widget.title),
       content: SizedBox(
         width: 460,
-        height: 420,
+        height: (MediaQuery.sizeOf(context).height * 0.6).clamp(240.0, 420.0),
         child: Column(children: [
           TextField(
             autofocus: true,

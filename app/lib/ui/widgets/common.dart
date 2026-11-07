@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -467,6 +469,100 @@ class OrderTypePicker extends StatelessWidget {
         Padding(padding: const EdgeInsets.only(top: 6), child: Muted(ot.hint, size: 12)),
     ]);
   }
+}
+
+// ============================================================================ choices
+
+/// A single-choice row: a segmented button on wide screens, wrapping chips on phones
+/// (a segmented button with three labels overflows a 390px screen).
+class Choices<T> extends StatelessWidget {
+  const Choices({super.key, required this.options, required this.value, required this.onChanged});
+  final List<(T, String, IconData?)> options;
+  final T value;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isWide(context)) {
+      return SegmentedButton<T>(
+        segments: [
+          for (final (v, label, icon) in options)
+            ButtonSegment(value: v, label: Text(label), icon: icon == null ? null : Icon(icon)),
+        ],
+        selected: {value},
+        onSelectionChanged: (s) => onChanged(s.first),
+      );
+    }
+    return Wrap(spacing: 6, runSpacing: 6, children: [
+      for (final (v, label, icon) in options)
+        ChoiceChip(
+          avatar: icon == null || v == value ? null : Icon(icon, size: 18),
+          label: Text(label),
+          selected: v == value,
+          onSelected: (_) => onChanged(v),
+        ),
+    ]);
+  }
+}
+
+/// A button that shows a spinner and ignores taps while its async work runs
+/// (building a PDF can take a few seconds; two taps used to open two viewers).
+class AsyncButton extends StatefulWidget {
+  const AsyncButton({super.key, required this.icon, required this.label, required this.onPressed, this.filled = false});
+  final IconData icon;
+  final String label;
+  final Future<void> Function() onPressed;
+  final bool filled;
+  @override
+  State<AsyncButton> createState() => _AsyncButtonState();
+}
+
+class _AsyncButtonState extends State<AsyncButton> {
+  bool _busy = false;
+  Future<void> _run() async {
+    setState(() => _busy = true);
+    try {
+      await widget.onPressed();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = _busy
+        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+        : Icon(widget.icon);
+    final label = Text(widget.label);
+    return widget.filled
+        ? FilledButton.icon(onPressed: _busy ? null : _run, icon: icon, label: label)
+        : OutlinedButton.icon(onPressed: _busy ? null : _run, icon: icon, label: label);
+  }
+}
+
+/// Menu entry for a destructive action: red, so it is not mistaken for "Edit".
+PopupMenuItem<T> dangerItem<T>(BuildContext context, T value, String label) => PopupMenuItem<T>(
+      value: value,
+      child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+    );
+
+/// Shown when a record was deleted (on another device) while its screen was open.
+class DeletedScreen extends StatelessWidget {
+  const DeletedScreen(this.what, {super.key});
+  final String what;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(),
+        body: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.delete_outline, size: 40, color: Theme.of(context).colorScheme.outline),
+            const SizedBox(height: 8),
+            Text('$what was deleted.'),
+            const SizedBox(height: 12),
+            FilledButton.tonal(onPressed: () => Navigator.maybePop(context), child: const Text('Go back')),
+          ]),
+        ),
+      );
 }
 
 // ============================================================================ logo

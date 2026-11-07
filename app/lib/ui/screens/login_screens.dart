@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/db.dart';
+import '../../core/device_mode.dart';
 import '../../core/logic.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
@@ -55,6 +56,18 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
     db.setMeta('hub_name', pcName);
     svc.hub?.hubName = pcName;
     svc.signIn(uid);
+  }
+
+  Future<void> _switchToWorkstation(BuildContext context) async {
+    if (!await confirm(
+        context,
+        'A workstation keeps no master copy: it connects to the main office PC over the network. '
+        'Cabinet CRM will close; open it again to connect.',
+        ok: 'Make this a workstation')) {
+      return;
+    }
+    await DeviceMode.save(DeviceMode.client);
+    exit(0);
   }
 
   @override
@@ -118,6 +131,11 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
                     ),
                     const SizedBox(height: 20),
                     FilledButton(onPressed: _save, child: const Text('Get started')),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => _switchToWorkstation(context),
+                      child: const Text('Not the main office PC? Set this computer up as a workstation instead'),
+                    ),
                   ]),
                 ),
               ),

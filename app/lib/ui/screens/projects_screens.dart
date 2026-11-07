@@ -86,7 +86,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             db: db,
             builder: (context) {
               final list = projectsList(db, status: _status, query: _q, orderType: _orderType);
-              if (list.isEmpty) return const Center(child: Muted('No jobs.'));
+              if (list.isEmpty) {
+                return Center(
+                    child: Muted(_q.isNotEmpty || _status != null || _orderType != null
+                        ? 'No jobs match these filters.'
+                        : 'No jobs yet. Add a customer, then start a job.'));
+              }
               return ListView.separated(
                 padding: const EdgeInsets.only(bottom: 80),
                 itemCount: list.length,
