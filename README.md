@@ -341,8 +341,10 @@ bar. If your logo already spells out the business name, tick **My logo already s
 - **Version releases (recommended).** Bump `version:` in `app/pubspec.yaml` (e.g. `1.1.0+2`) and push a tag `v1.1.0`.
   GitHub then publishes a **Release** with the Windows installer and the Android APK attached, under **Releases** on
   the repository page. Release files don't expire.
-- **Test builds.** Every other push builds everything. The installer and APK are kept as downloads for 2 days
-  under **Actions → Build → Artifacts**.
+- **Test builds.** Every other push runs the tests and builds the Windows installer, kept as a download for 2 days
+  under **Actions → Build → Artifacts**. The Android and iPhone apps are built only for releases, or when you start
+  the workflow by hand (**Actions → Build → Run workflow**, leave the tag empty), because they use the most build
+  minutes.
 
 | File | What to do |
 |---|---|
