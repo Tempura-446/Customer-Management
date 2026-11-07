@@ -39,14 +39,25 @@ class _DevicesScreenState extends State<DevicesScreen> {
     } catch (_) {}
   }
 
+  static const _shared = '*shared*';
+
   Future<void> _pair() async {
     final svc = context.svc;
     final users = activeUsers(svc.db);
-    final user = await showDialog<Rec>(
+    final pick = await showDialog<Object>(
       context: context,
       builder: (c) => SimpleDialog(
         title: const Text('Who will use this phone or computer?'),
         children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(c, _shared),
+            child: const ListTile(
+              leading: CircleAvatar(child: Icon(Icons.groups_outlined)),
+              title: Text('Shared office computer'),
+              subtitle: Text('Anyone signs in with their own name and PIN'),
+            ),
+          ),
+          const Divider(),
           for (final u in users)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(c, u),
@@ -59,20 +70,25 @@ class _DevicesScreenState extends State<DevicesScreen> {
         ],
       ),
     );
-    if (user == null || !mounted) return;
+    if (pick == null || !mounted) return;
+    final shared = pick == _shared;
+    final user = shared ? svc.user! : pick as Rec;
     await _loadAddresses();
     if (!mounted) return;
-    final code = svc.hub!.createPairingCode(user.id);
+    final code = svc.hub!.createPairingCode(user.id, shared: shared);
     final payload = jsonEncode(svc.hub!.pairingPayload(code, _addresses));
     await showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text('Add a phone or computer for ${user.s('name')}'),
+        title: Text(shared ? 'Add a shared office computer' : 'Add a phone or computer for ${user.s('name')}'),
         content: SizedBox(
           width: 380,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Phone: open Casework → "Scan QR code on the PC".\n'
-                'Workstation: open Casework → "Find the main office PC", then type the code below.'),
+            Text(shared
+                ? 'On that computer open Casework → "Find the main office PC", then type the code below. '
+                    'Afterwards anyone signs in there with their own name and PIN.'
+                : 'Phone: open Casework → "Scan QR code on the PC".\n'
+                    'Workstation: open Casework → "Find the main office PC", then type the code below.'),
             const SizedBox(height: 12),
             Container(
               decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
@@ -152,22 +168,43 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           dim: d.b('revoked'),
                           title: d.s('name'),
                           subtitle: [
-                            '${d.s('user_name')} (${d.s('role')})',
+                            if (d.b('shared')) 'Shared: anyone signs in with their PIN' else '${d.s('user_name')} (${d.s('role')})',
                             d.ns('last_sync') == null ? 'never synced' : 'last sync ${fmtDateTime(d.s('last_sync'))}',
                             if (d.b('revoked')) 'removed',
                           ].join(' · '),
                           trailing: svc.isOwner && !d.b('revoked')
-                              ? IconButton(
-                                  tooltip: 'Remove device',
-                                  icon: const Icon(Icons.phonelink_erase),
-                                  onPressed: () async {
-                                    if (await confirm(context,
-                                        'Remove "${d.s('name')}"? It will stop syncing immediately (use this if a phone is lost).',
-                                        ok: 'Remove', danger: true)) {
-                                      hub!.revokeDevice(d.id);
-                                    }
-                                  },
-                                )
+                              ? Row(mainAxisSize: MainAxisSize.min, children: [
+                                  IconButton(
+                                    tooltip: d.b('shared')
+                                        ? 'Make it ${d.s('user_name')}\'s again'
+                                        : 'Make it a shared computer (anyone signs in with their PIN)',
+                                    icon: Icon(d.b('shared') ? Icons.person_outline : Icons.groups_outlined),
+                                    onPressed: () async {
+                                      final toShared = !d.b('shared');
+                                      if (await confirm(
+                                          context,
+                                          toShared
+                                              ? 'Make "${d.s('name')}" a shared office computer? Anyone will sign in there with '
+                                                  'their own name and PIN. Use this for office workstations, not phones.'
+                                              : 'Make "${d.s('name')}" ${d.s('user_name')}\'s computer again? Nobody else can '
+                                                  'sign in there.',
+                                          ok: toShared ? 'Make shared' : 'Make personal')) {
+                                        hub!.setDeviceShared(d.id, toShared);
+                                      }
+                                    },
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Remove device',
+                                    icon: const Icon(Icons.phonelink_erase),
+                                    onPressed: () async {
+                                      if (await confirm(context,
+                                          'Remove "${d.s('name')}"? It will stop syncing immediately (use this if a phone is lost).',
+                                          ok: 'Remove', danger: true)) {
+                                        hub!.revokeDevice(d.id);
+                                      }
+                                    },
+                                  ),
+                                ])
                               : null,
                         ),
                     ]),
@@ -344,7 +381,11 @@ class _PhonePairScreenState extends State<PhonePairScreen> {
       } on SyncException catch (e) {
         if (mounted) toast(context, 'Paired, but first sync failed: ${e.message}', error: true);
       }
-      svc.signIn(c.userId!);
+      if (c.shared) {
+        svc.forgetUser(); // nobody is signed in yet: show the PIN sign-in
+      } else {
+        svc.signIn(c.userId!);
+      }
     } on SyncException catch (e) {
       if (mounted) {
         toast(context, e.message, error: true);
@@ -376,7 +417,8 @@ class _PhonePairScreenState extends State<PhonePairScreen> {
                     textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 8),
                 Muted(Services.desktop
-                    ? '1. On the main office PC open Casework → Devices → "Add a phone or computer" and pick your name.\n'
+                    ? '1. On the main office PC open Casework → Devices → "Add a phone or computer" and pick '
+                        '"Shared office computer" (or one person).\n'
                         '2. Here, click "Find the main office PC" (or type its address).\n'
                         '3. Type the pairing code shown on the main PC.'
                     : '1. On the PC open Casework → Devices → "Add a phone or computer" and pick your name.\n'

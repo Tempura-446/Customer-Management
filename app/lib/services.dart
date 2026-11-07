@@ -102,7 +102,7 @@ class Services extends ChangeNotifier {
     final s = Services._(db, files, client: client)..storageWarning = warning;
     s.detectZpdf();
     final uid = client.userId;
-    if (uid != null) s.signIn(uid);
+    if (uid != null && !client.shared) s.signIn(uid);
     s.reminders.start();
     return s;
   }
@@ -129,8 +129,14 @@ class Services extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// An office computer anyone signs in to with their PIN (see SyncClient.shared).
+  bool get sharedWorkstation => client?.shared ?? false;
+
+  /// Main PC or a shared office computer: people sign in and out with their PIN.
+  bool get signsIn => isHub || sharedWorkstation;
+
   void signOut() {
-    if (!isHub) return;
+    if (!signsIn) return;
     user = null;
     db.currentUserId = null;
     notifyListeners();

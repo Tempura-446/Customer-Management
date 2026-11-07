@@ -49,6 +49,65 @@ void main() {
     return ph;
   }
 
+  test('shared office computer: everyone signs in with their PIN; changes count with the author\'s role', () async {
+    final ws = Phone(Directory('${tmp.path}/ws'));
+    await ws.client.pair(server.pairingPayload(server.createPairingCode(owner, shared: true), ['127.0.0.1']),
+        deviceName: 'Front desk');
+    expect(ws.client.shared, isTrue);
+    expect(ws.client.userId, isNull, reason: 'not tied to one person');
+    final cid = saveCustomer(hub, {'name': 'Jane'});
+    final pid = createProject(hub, customerId: cid, title: 'Kitchen');
+    final q = createQuote(hub, pid);
+    saveQuote(hub, q, taxRate: 0, discount: 0, depositPct: 50, lines: [QuoteLine(description: 'Boxes', unitPrice: 900)]);
+    await ws.client.sync();
+    // PINs arrive so people can sign in here even with the main PC off; prices too (office computer).
+    expect(checkPin('2222', ws.db.get('users', installer)!.ns('pin_hash')), isTrue);
+    expect(checkPin('1111', ws.db.get('users', owner)!.ns('pin_hash')), isTrue);
+    expect(ws.db.get('quotes', q), isNotNull);
+
+    // The installer signs in and edits the job (fine) and a quote (not allowed for field staff).
+    ws.db.currentUserId = installer;
+    ws.db.update('projects', pid, {'title': 'Kitchen + pantry'});
+    ws.db.update('quotes', q, {'notes': 'installer edit'});
+    // Then the owner signs in and edits the quote.
+    await ws.client.sync();
+    expect(hub.get('projects', pid)!.s('title'), 'Kitchen + pantry');
+    expect(hub.get('quotes', q)!.ns('notes'), isNull);
+    expect(ws.db.get('quotes', q)!.ns('notes'), isNull, reason: 'refused change replaced by the main PC version');
+    ws.db.currentUserId = owner;
+    ws.db.update('quotes', q, {'notes': 'owner edit'});
+    ws.db.currentUserId = null; // signed out before the next sync: still counts as the owner's change
+    await ws.client.sync();
+    expect(hub.get('quotes', q)!.s('notes'), 'owner edit');
+    // Phones stay personal and never receive PINs.
+    final ph = await pairedPhone(installer, 'phone');
+    await ph.client.sync();
+    expect(ph.db.get('users', owner)!.ns('pin_hash'), isNull);
+    expect(ph.client.shared, isFalse);
+  });
+
+  test("a person's computer can be made shared on the main PC, and fetches what it was missing", () async {
+    final cid = saveCustomer(hub, {'name': 'Jane'});
+    final pid = createProject(hub, customerId: cid, title: 'Kitchen');
+    final q = createQuote(hub, pid);
+    saveQuote(hub, q, taxRate: 0, discount: 0, depositPct: 50, lines: [QuoteLine(description: 'Boxes', unitPrice: 900)]);
+    final ws = await pairedPhone(installer, 'ws');
+    await ws.client.sync();
+    expect(ws.db.get('quotes', q), isNull, reason: "the installer's computer gets no prices");
+    final device = hub.raw.select('SELECT id FROM devices ORDER BY created_at DESC LIMIT 1').first['id'] as String;
+    server.setDeviceShared(device, true);
+    await ws.client.sync();
+    expect(ws.client.shared, isTrue);
+    expect(ws.client.userId, isNull);
+    expect(ws.db.get('quotes', q), isNotNull);
+    expect(ws.db.get('users', owner)!.ns('pin_hash'), isNotNull);
+    server.setDeviceShared(device, false);
+    await ws.client.sync();
+    expect(ws.client.shared, isFalse);
+    expect(ws.client.userId, installer);
+    expect(ws.db.get('quotes', q), isNull, reason: 'back to the installer: prices removed again');
+  });
+
   test('pairing codes are single use', () async {
     final code = server.createPairingCode(owner);
     final a = Phone(Directory('${tmp.path}/a'));

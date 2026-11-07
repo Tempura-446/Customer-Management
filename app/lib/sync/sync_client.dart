@@ -46,6 +46,9 @@ class SyncClient extends ChangeNotifier {
   String? get hubName => db.meta('hub_name');
   String? get lastSync => db.meta('last_sync');
   String? get userId => db.meta('user_id');
+
+  /// A shared office computer: anyone signs in with their own PIN (set on the main PC).
+  bool get shared => db.meta('shared_device') == '1';
   List<String> get _hosts => ((jsonDecode(db.meta('hub_hosts') ?? '[]') as List).cast<String>());
 
   int pendingChanges() {
@@ -70,12 +73,18 @@ class SyncClient extends ChangeNotifier {
     db.setMeta('hub_name', res['name'] as String? ?? 'Office PC');
     db.setMeta('hub_hosts', jsonEncode([base.replaceFirst('http://', ''), ...hosts]));
     db.setMeta('cursor', '0');
-    _storeUser(res['user'] as Map<String, dynamic>);
+    if (res['shared'] == true) {
+      db.setMeta('shared_device', '1');
+    } else {
+      db.setMeta('shared_device', '0');
+      _storeUser(res['user'] as Map<String, dynamic>);
+    }
     notifyListeners();
   }
 
   void unpair() {
-    for (final k in ['hub_token', 'hub_id', 'hub_name', 'hub_hosts', 'cursor', 'user_id', 'last_sync', 'hub_generation']) {
+    for (final k in ['hub_token', 'hub_id', 'hub_name', 'hub_hosts', 'cursor', 'user_id', 'last_sync', 'hub_generation',
+        'shared_device']) {
       db.raw.execute('DELETE FROM meta WHERE key=?', [k]);
     }
     notifyListeners();
@@ -171,7 +180,7 @@ class SyncClient extends ChangeNotifier {
           if (confirmed) db.raw.execute('UPDATE $t SET dirty=0 WHERE id=? AND updated_at=? AND dirty=1', [id, ts]);
         }
         db.setMeta('cursor', '${res['cursor']}');
-        if (res['user'] != null) _storeUser(res['user'] as Map<String, dynamic>);
+        if (res['user'] != null && res['shared'] != true) _storeUser(res['user'] as Map<String, dynamic>);
         db.pruneBases(syncTables.keys);
         db.raw.execute('COMMIT');
       } catch (_) {
@@ -200,7 +209,15 @@ class SyncClient extends ChangeNotifier {
       final gen = '${res['generation'] ?? '0'}';
       final known = db.meta('hub_generation');
       db.setMeta('hub_generation', gen);
-      if (known != null && known != gen && retryAfterGenerationChange) {
+      // Made shared (or back to one person's) on the main PC: what this computer may hold
+      // changed, so fetch everything again the same way.
+      final nowShared = res['shared'] == true;
+      final sharedChanged = res.containsKey('shared') && nowShared != shared;
+      if (sharedChanged) {
+        db.setMeta('shared_device', nowShared ? '1' : '0');
+        if (nowShared) db.raw.execute("DELETE FROM meta WHERE key='user_id'"); // next start: sign-in screen
+      }
+      if (((known != null && known != gen) || sharedChanged) && retryAfterGenerationChange) {
         db.raw.execute('BEGIN');
         for (final t in syncTables.keys) {
           db.raw.execute('DELETE FROM $t WHERE dirty=0');

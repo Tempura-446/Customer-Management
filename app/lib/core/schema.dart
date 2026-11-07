@@ -201,12 +201,15 @@ CREATE TABLE IF NOT EXISTS blobs (
 -- first edited here. Sent with the push so the main PC can merge two people's edits field by field.
 CREATE TABLE IF NOT EXISTS bases (tbl TEXT NOT NULL, id TEXT NOT NULL, row TEXT NOT NULL, PRIMARY KEY (tbl, id));
 -- Hub only: paired phones / tablets.
+-- shared = an office computer anyone signs in to with their own PIN (user_id is who paired it).
 CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT, token_hash TEXT NOT NULL,
-  created_at TEXT NOT NULL, last_sync TEXT, revoked INTEGER NOT NULL DEFAULT 0);
+  created_at TEXT NOT NULL, last_sync TEXT, revoked INTEGER NOT NULL DEFAULT 0,
+  shared INTEGER NOT NULL DEFAULT 0);
 -- Hub only: one-time pairing codes shown as QR.
 CREATE TABLE IF NOT EXISTS pairing_codes (
-  code TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at TEXT NOT NULL);
+  code TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at TEXT NOT NULL,
+  shared INTEGER NOT NULL DEFAULT 0);
 ''';
 
 String createStatements() {

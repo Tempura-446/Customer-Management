@@ -168,6 +168,11 @@ class _LoginScreenState extends State<LoginScreen> {
   void _submit() {
     final u = _selected;
     if (u == null) return;
+    if (u.ns('pin_hash') == null) {
+      setState(() => _error = "This PIN hasn't reached this computer yet. Make sure the main office PC is on, "
+          'then try again in a minute.');
+      return;
+    }
     if (checkPin(_pin.text, u.ns('pin_hash'))) {
       context.svc.signIn(u.id);
     } else {
@@ -194,7 +199,12 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               Text(business, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 4),
-              const Center(child: Muted('Who is using the PC?')),
+              Center(child: Muted(svc.isHub ? 'Who is using the PC?' : 'Who is using this computer?')),
+              if (users.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 16),
+                  child: Center(child: Muted('Getting the staff list from the main office PC…')),
+                ),
               const SizedBox(height: 20),
               Wrap(
                 alignment: WrapAlignment.center,

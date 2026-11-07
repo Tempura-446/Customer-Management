@@ -41,9 +41,11 @@ bool rowVisible(String table, Map<String, Object?> row, String role) {
   return true;
 }
 
-Map<String, Object?> outgoing(String table, Map<String, Object?> row) {
+/// A row as sent to a device. PIN hashes go only to shared office computers, which
+/// check PINs themselves so people can sign in even while the main PC is off.
+Map<String, Object?> outgoing(String table, Map<String, Object?> row, {bool withPins = false}) {
   final r = Map<String, Object?>.from(row)..remove('dirty');
-  if (table == 'users') r.remove('pin_hash');
+  if (table == 'users' && !withPins) r.remove('pin_hash');
   return r;
 }
 
@@ -107,13 +109,14 @@ class HubServer {
 
   /// Owner creates a one-time code for a user (shown as a QR code). Valid 15 minutes.
   /// Codes use letters/digits that can't be confused (no 0/O, 1/I/L) and are shown as ABCD-EFGH.
-  String createPairingCode(String userId) {
+  /// [shared]: an office computer anyone signs in to; [userId] is then whoever created the code.
+  String createPairingCode(String userId, {bool shared = false}) {
     const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     final rnd = Random.secure();
     final code = List.generate(8, (_) => alphabet[rnd.nextInt(alphabet.length)]).join();
     db.raw.execute('DELETE FROM pairing_codes WHERE expires_at < ?', [DateTime.now().toUtc().toIso8601String()]);
-    db.raw.execute('INSERT INTO pairing_codes(code, user_id, expires_at) VALUES (?,?,?)',
-        [code, userId, DateTime.now().toUtc().add(const Duration(minutes: 15)).toIso8601String()]);
+    db.raw.execute('INSERT INTO pairing_codes(code, user_id, expires_at, shared) VALUES (?,?,?,?)',
+        [code, userId, DateTime.now().toUtc().add(const Duration(minutes: 15)).toIso8601String(), shared ? 1 : 0]);
     return code;
   }
 
@@ -126,6 +129,13 @@ class HubServer {
 
   void revokeDevice(String id) {
     db.raw.execute('UPDATE devices SET revoked=1 WHERE id=?', [id]);
+    db.changed();
+  }
+
+  /// Turn a paired computer into a shared one (anyone signs in), or back to one person's.
+  /// The computer notices at its next sync and fetches everything again.
+  void setDeviceShared(String id, bool shared) {
+    db.raw.execute('UPDATE devices SET shared=? WHERE id=?', [shared ? 1 : 0, id]);
     db.changed();
   }
 
@@ -155,15 +165,18 @@ class HubServer {
     }
     final user = db.get('users', row['user_id'] as String);
     if (user == null || !user.b('active')) throw _Http(403, 'User is not active.');
+    final shared = row['shared'] == 1;
     db.raw.execute('DELETE FROM pairing_codes WHERE code=?', [code]);
     final token = randomToken();
     final deviceId = newId();
-    db.raw.execute('INSERT INTO devices(id, user_id, name, token_hash, created_at) VALUES (?,?,?,?,?)',
-        [deviceId, user.id, '${body['device_name'] ?? 'Phone'}', hashToken(token), DateTime.now().toUtc().toIso8601String()]);
+    db.raw.execute('INSERT INTO devices(id, user_id, name, token_hash, created_at, shared) VALUES (?,?,?,?,?,?)',
+        [deviceId, user.id, '${body['device_name'] ?? 'Phone'}', hashToken(token), DateTime.now().toUtc().toIso8601String(),
+         shared ? 1 : 0]);
     db.changed();
     return _json({
       'token': token, 'device_id': deviceId, 'hub': hubId, 'name': hubName,
-      'user': outgoing('users', user.m),
+      'shared': shared,
+      'user': shared ? null : outgoing('users', user.m),
     });
   }
 
@@ -182,12 +195,17 @@ class HubServer {
 
   Future<Response> _sync(Request req) async {
     final a = _auth(req);
-    final role = a.user.s('role');
+    final shared = a.device.b('shared');
+    // A shared office computer receives everything (the app hides prices from field staff
+    // signed in there); each change it sends counts with the role of the person who made it.
+    final role = shared ? 'owner' : a.user.s('role');
     final body = jsonDecode(await req.readAsString()) as Map<String, dynamic>;
     final since = (body['since'] as num?)?.toInt() ?? 0;
     final changes = (body['changes'] as Map<String, dynamic>?) ?? {};
-    final result = mergePush(changes, role: role, byUser: a.user.id);
-    final out = pullSince(since, role: role);
+    final result = shared
+        ? mergePush(changes, role: 'field', roleFor: _roleOfAuthor)
+        : mergePush(changes, role: role, byUser: a.user.id);
+    final out = pullSince(since, role: role, withPins: shared);
     // Rejected rows: send back the hub version even if its seq is old (only what this role may see).
     for (final MapEntry(key: t, value: ids) in result.rejected.entries) {
       if (!tableAllowed(t, role, write: false)) continue;
@@ -211,8 +229,15 @@ class HubServer {
       'accepted': result.accepted,
       'accepted_ids': result.acceptedIds,
       'skipped_ids': result.skippedIds,
-      'user': outgoing('users', a.user.m),
+      'shared': shared,
+      if (!shared) 'user': outgoing('users', a.user.m),
     });
+  }
+
+  /// Role of whoever made a change on a shared computer; unknown or inactive people count as field staff.
+  String _roleOfAuthor(Map<String, Object?> row) {
+    final u = db.get('users', row['updated_by'] as String?);
+    return u != null && u.b('active') ? u.s('role') : 'field';
   }
 
   static final _hex64 = RegExp(r'^[0-9a-f]{64}$');
@@ -232,7 +257,8 @@ class HubServer {
 
   /// Apply rows pushed by a device. Public so tests (and a future cloud relay) can reuse it.
   ({int accepted, Map<String, List<String>> rejected, Map<String, List<String>> acceptedIds,
-      Map<String, List<String>> skippedIds}) mergePush(Map<String, dynamic> changes, {required String role, String? byUser}) {
+      Map<String, List<String>> skippedIds}) mergePush(Map<String, dynamic> changes,
+      {required String role, String? byUser, String Function(Map<String, Object?> row)? roleFor}) {
     var accepted = 0;
     final rejected = <String, List<String>>{};
     final acceptedIds = <String, List<String>>{};
@@ -242,7 +268,7 @@ class HubServer {
       for (final table in syncTables.keys) {
         final rows = (changes[table] as List?) ?? const [];
         if (rows.isEmpty) continue;
-        if (!tableAllowed(table, role, write: true)) {
+        if (roleFor == null && !tableAllowed(table, role, write: true)) {
           for (final r in rows) {
             if (r is Map && r['id'] is String) (rejected[table] ??= []).add(r['id'] as String);
           }
@@ -258,7 +284,12 @@ class HubServer {
             continue;
           }
           final id = row['id'] as String;
-          if (!rowVisible(table, row, role)) {
+          final rowRole = roleFor?.call(row) ?? role;
+          if (roleFor != null && !tableAllowed(table, rowRole, write: true)) {
+            (rejected[table] ??= []).add(id);
+            continue;
+          }
+          if (!rowVisible(table, row, rowRole)) {
             (skippedIds[table] ??= []).add(id);
             continue;
           }
@@ -415,7 +446,7 @@ class HubServer {
     });
   }
 
-  Map<String, List<Map<String, Object?>>> pullSince(int since, {required String role}) {
+  Map<String, List<Map<String, Object?>>> pullSince(int since, {required String role, bool withPins = false}) {
     final out = <String, List<Map<String, Object?>>>{};
     for (final table in syncTables.keys) {
       if (!tableAllowed(table, role, write: false)) continue;
@@ -427,7 +458,7 @@ class HubServer {
           (out[table] ??= []).add({'id': m['id'], 'deleted': 1, 'updated_at': m['updated_at'], 'seq': m['seq']});
           continue;
         }
-        (out[table] ??= []).add(outgoing(table, m));
+        (out[table] ??= []).add(outgoing(table, m, withPins: withPins));
       }
     }
     return out;

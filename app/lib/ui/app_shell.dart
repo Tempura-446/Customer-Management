@@ -31,7 +31,12 @@ class AppGate extends StatelessWidget {
       if (svc.user == null) return const LoginScreen();
       return AppShell(key: ValueKey('${svc.user!.id}/${svc.role}'));
     }
-    if (!svc.client!.paired || svc.user == null) return const PhonePairScreen();
+    if (!svc.client!.paired) return const PhonePairScreen();
+    if (svc.client!.shared) {
+      if (svc.user == null) return const SharedSignIn();
+      return AppShell(key: ValueKey('${svc.user!.id}/${svc.role}'));
+    }
+    if (svc.user == null) return const PhonePairScreen();
     return AppShell(key: ValueKey('${svc.user!.id}/${svc.role}'));
   }
 }
@@ -144,7 +149,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                         maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
               ]),
             ),
-            trailing: svc.isHub
+            trailing: svc.signsIn
                 ? Expanded(
                     child: Align(
                       alignment: Alignment.bottomCenter,
@@ -213,7 +218,7 @@ class _MorePage extends StatelessWidget {
         if (svc.prices) tile(Icons.insights_outlined, 'Reports', 'Quotes won, time to quote, money collected', const ReportsScreen()),
         tile(Icons.sync, syncLabel, svc.isHub ? 'Connected workstations and phones' : 'Sync with the main office PC', syncPage),
         tile(Icons.settings_outlined, 'Settings', 'Business details, staff and more', const SettingsScreen()),
-        if (svc.isHub)
+        if (svc.signsIn)
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: OutlinedButton.icon(onPressed: svc.signOut, icon: const Icon(Icons.logout), label: const Text('Sign out')),
@@ -221,4 +226,47 @@ class _MorePage extends StatelessWidget {
       ]),
     );
   }
+}
+
+/// Shared office computer, nobody signed in: the PIN sign-in, while staying in sync so
+/// new staff and changed PINs arrive.
+class SharedSignIn extends StatefulWidget {
+  const SharedSignIn({super.key});
+  @override
+  State<SharedSignIn> createState() => _SharedSignInState();
+}
+
+class _SharedSignInState extends State<SharedSignIn> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _sync());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _sync() async {
+    if (!mounted) return;
+    final svc = context.svc;
+    final c = svc.client;
+    if (c == null || !c.paired || c.syncing) return;
+    try {
+      await c.sync();
+    } on SyncException catch (e) {
+      if (e.unpaired) {
+        c.unpair();
+        svc.forgetUser();
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) => const LoginScreen();
 }

@@ -58,6 +58,8 @@ class AppDb extends ChangeNotifier {
       ('projects', 'approval_sent_to', 'TEXT'),
       ('projects', 'approved_on', 'TEXT'),
       ('projects', 'approved_by', 'TEXT'),
+      ('devices', 'shared', 'INTEGER NOT NULL DEFAULT 0'),
+      ('pairing_codes', 'shared', 'INTEGER NOT NULL DEFAULT 0'),
     ];
     for (final (table, column, type) in added) {
       final cols = raw.select('PRAGMA table_info($table)').map((r) => r['name']).toSet();
