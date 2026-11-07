@@ -127,6 +127,21 @@ String estimateQueryRq({required String fromModified, String? iteratorId, String
     '<IncludeLinkedTxns>true</IncludeLinkedTxns>'
     '</EstimateQueryRq>';
 
+String invoiceQueryRq({required String fromModified, String? iteratorId, String requestId = 'iq', int maxReturned = 100}) =>
+    '<InvoiceQueryRq requestID="${qbEscape(requestId)}" ${_iterAttrs(iteratorId)}>'
+    '<MaxReturned>$maxReturned</MaxReturned>'
+    '<ModifiedDateRangeFilter><FromModifiedDate>${qbEscape(fromModified)}</FromModifiedDate></ModifiedDateRangeFilter>'
+    '<IncludeLinkedTxns>true</IncludeLinkedTxns>'
+    '</InvoiceQueryRq>';
+
+String receivePaymentQueryRq(
+        {required String fromModified, String? iteratorId, String requestId = 'pq', int maxReturned = 100}) =>
+    '<ReceivePaymentQueryRq requestID="${qbEscape(requestId)}" ${_iterAttrs(iteratorId)}>'
+    '<MaxReturned>$maxReturned</MaxReturned>'
+    '<ModifiedDateRangeFilter><FromModifiedDate>${qbEscape(fromModified)}</FromModifiedDate></ModifiedDateRangeFilter>'
+    '<IncludeLineItems>true</IncludeLineItems>'
+    '</ReceivePaymentQueryRq>';
+
 // ============================================================================ parsing
 
 class QbResponse {
@@ -280,4 +295,82 @@ class QbEstimate {
       timeModified: _text(e, 'TimeModified'),
     );
   }
+}
+
+class QbInvoice {
+  QbInvoice({
+    required this.txnId,
+    this.refNumber,
+    this.txnDate,
+    this.dueDate,
+    this.customerListId,
+    this.customerFullName,
+    this.subtotal = 0,
+    this.tax = 0,
+    this.balance = 0,
+    this.isPaid = false,
+    this.memo,
+    this.estimateTxnIds = const [],
+    this.timeModified,
+  });
+  final String txnId;
+  final String? refNumber, txnDate, dueDate, customerListId, customerFullName, memo, timeModified;
+  final double subtotal, tax, balance;
+  final bool isPaid;
+  final List<String> estimateTxnIds;
+  double get total => subtotal + tax;
+
+  factory QbInvoice.fromXml(XmlElement e) => QbInvoice(
+        txnId: _text(e, 'TxnID') ?? '',
+        refNumber: _text(e, 'RefNumber'),
+        txnDate: _text(e, 'TxnDate'),
+        dueDate: _text(e, 'DueDate'),
+        customerListId: _ref(e, 'CustomerRef', 'ListID'),
+        customerFullName: _ref(e, 'CustomerRef', 'FullName'),
+        subtotal: _num(_text(e, 'Subtotal')),
+        tax: _num(_text(e, 'SalesTaxTotal')),
+        balance: _num(_text(e, 'BalanceRemaining')),
+        isPaid: _text(e, 'IsPaid') == 'true',
+        memo: _text(e, 'Memo'),
+        estimateTxnIds: [
+          for (final l in e.findElements('LinkedTxn'))
+            if (_text(l, 'TxnType') == 'Estimate' && _text(l, 'TxnID') != null) _text(l, 'TxnID')!,
+        ],
+        timeModified: _text(e, 'TimeModified'),
+      );
+}
+
+class QbPayment {
+  QbPayment({
+    required this.txnId,
+    this.refNumber,
+    this.txnDate,
+    this.customerListId,
+    this.customerFullName,
+    this.amount = 0,
+    this.method,
+    this.applied = const [],
+    this.timeModified,
+  });
+  final String txnId;
+  final String? refNumber, txnDate, customerListId, customerFullName, method, timeModified;
+  final double amount;
+
+  /// Invoices this payment pays: (invoice TxnID, amount applied).
+  final List<(String, double)> applied;
+
+  factory QbPayment.fromXml(XmlElement e) => QbPayment(
+        txnId: _text(e, 'TxnID') ?? '',
+        refNumber: _text(e, 'RefNumber'),
+        txnDate: _text(e, 'TxnDate'),
+        customerListId: _ref(e, 'CustomerRef', 'ListID'),
+        customerFullName: _ref(e, 'CustomerRef', 'FullName'),
+        amount: _num(_text(e, 'TotalAmount')),
+        method: _ref(e, 'PaymentMethodRef', 'FullName'),
+        applied: [
+          for (final a in e.findElements('AppliedToTxnRet'))
+            if (_text(a, 'TxnID') != null) (_text(a, 'TxnID')!, _num(_text(a, 'PaymentAmount'))),
+        ],
+        timeModified: _text(e, 'TimeModified'),
+      );
 }

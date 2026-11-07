@@ -6,7 +6,9 @@
 ///      customers Casework doesn't have yet;
 ///   2. create Casework customers and jobs that are missing in QuickBooks (as Customer:Job);
 ///   3. read estimates changed since the last run → show them on the job, move the job to
-///      Quoted / Approved.
+///      Quoted / Approved;
+///   4. read invoices and customer payments changed since the last run → show them on the job,
+///      move it to Paid once every invoice is paid and the work is done.
 ///
 /// Pure Dart: [nextRequest] returns qbXML to send, [handleResponse] consumes QuickBooks' reply.
 library;
@@ -19,7 +21,7 @@ import '../core/db.dart';
 import '../core/logic.dart';
 import 'qbxml.dart';
 
-enum _Step { customers, addCustomers, addJobs, estimates, done }
+enum _Step { customers, addCustomers, addJobs, estimates, invoices, payments, done }
 
 class QbSync extends ChangeNotifier {
   QbSync(this.db);
@@ -55,8 +57,9 @@ class QbSync extends ChangeNotifier {
   final _log = <String>[];
   final _pendingAdds = <String, (String kind, String cabinetId, String name, String? parent)>{}; // requestID ->
   final _retry = <(String kind, String cabinetId)>[];
-  int _addSeq = 0, _linked = 0, _imported = 0, _created = 0, _estimates = 0;
-  String? _maxModified;
+  int _addSeq = 0, _linked = 0, _imported = 0, _created = 0, _estimates = 0, _invoices = 0, _payments = 0;
+  String? _maxModified, _maxInvoiceModified, _maxPaymentModified;
+  final _touched = <String>{}; // jobs whose QuickBooks invoices or payments changed this run
   String? error;
 
   void _note(String s) {
@@ -73,8 +76,9 @@ class QbSync extends ChangeNotifier {
     _log.clear();
     _pendingAdds.clear();
     _retry.clear();
-    _linked = _imported = _created = _estimates = 0;
-    _maxModified = null;
+    _linked = _imported = _created = _estimates = _invoices = _payments = 0;
+    _maxModified = _maxInvoiceModified = _maxPaymentModified = null;
+    _touched.clear();
     error = null;
     _note('Started ${DateTime.now().toIso8601String()}');
     notifyListeners();
@@ -96,6 +100,10 @@ class QbSync extends ChangeNotifier {
         return batch;
       case _Step.estimates:
         return qbxmlDoc(estimateQueryRq(fromModified: _estimatesFrom(), iteratorId: _iterator));
+      case _Step.invoices:
+        return qbxmlDoc(invoiceQueryRq(fromModified: _from('qb_last_invoice_sync'), iteratorId: _iterator));
+      case _Step.payments:
+        return qbxmlDoc(receivePaymentQueryRq(fromModified: _from('qb_last_payment_sync'), iteratorId: _iterator));
       case _Step.done:
         return null;
     }
@@ -114,6 +122,10 @@ class QbSync extends ChangeNotifier {
             _onAdds(responses);
           case _Step.estimates:
             _onEstimates(responses);
+          case _Step.invoices:
+            _onInvoices(responses);
+          case _Step.payments:
+            _onPayments(responses);
           case _Step.done:
             break;
         }
@@ -127,7 +139,7 @@ class QbSync extends ChangeNotifier {
     if (_step == _Step.addCustomers || _step == _Step.addJobs) {
       return 60;
     }
-    return switch (_step) { _Step.customers => 20, _Step.estimates => 80, _ => 50 };
+    return switch (_step) { _Step.customers => 20, _Step.estimates => 70, _Step.invoices => 80, _Step.payments => 90, _ => 50 };
   }
 
   void fail(String message) {
@@ -147,13 +159,15 @@ class QbSync extends ChangeNotifier {
     running = false;
     final summary = ok
         ? '$_linked linked, $_imported imported from QuickBooks, $_created created in QuickBooks, '
-            '$_estimates estimate(s) updated.'
+            '$_estimates estimate(s), $_invoices invoice(s) and $_payments payment(s) updated.'
         : 'Stopped: ${error ?? 'unknown error'}';
     db.setMeta('qb_last_run', DateTime.now().toIso8601String());
     db.setMeta('qb_last_result', summary);
     if (ok) {
       db.raw.execute("DELETE FROM meta WHERE key='qb_last_error'");
       if (_maxModified != null) db.setMeta('qb_last_estimate_sync', _maxModified!);
+      if (_maxInvoiceModified != null) db.setMeta('qb_last_invoice_sync', _maxInvoiceModified!);
+      if (_maxPaymentModified != null) db.setMeta('qb_last_payment_sync', _maxPaymentModified!);
     } else {
       db.setMeta('qb_last_error', error ?? 'unknown error');
     }
@@ -355,8 +369,157 @@ class QbSync extends ChangeNotifier {
       _iterator = r.iteratorId;
       return;
     }
+    _step = _Step.invoices;
+    _iterator = null;
+  }
+
+  // ------------------------------------------------------------------ step 4: invoices & payments
+
+  String _from(String key) => db.meta(key) ?? qbDateTime(DateTime.now().subtract(const Duration(days: 365)));
+
+  static String? _later(String? a, String? b) => (a == null || (b != null && b.compareTo(a) > 0)) ? b : a;
+
+  void _onInvoices(List<QbResponse> responses) {
+    final r = responses.where((r) => r.type == 'InvoiceQueryRs').firstOrNull;
+    if (r == null || !r.ok) throw StateError('InvoiceQuery failed: ${r?.statusMessage ?? 'no response'}');
+    for (final e in r.rets('InvoiceRet')) {
+      final inv = QbInvoice.fromXml(e);
+      if (inv.txnId.isEmpty) continue;
+      upsertInvoice(inv);
+      _maxInvoiceModified = _later(_maxInvoiceModified, inv.timeModified);
+    }
+    if (r.iteratorId != null && r.remaining > 0) {
+      _iterator = r.iteratorId;
+      return;
+    }
+    _step = _Step.payments;
+    _iterator = null;
+  }
+
+  void _onPayments(List<QbResponse> responses) {
+    final r = responses.where((r) => r.type == 'ReceivePaymentQueryRs').firstOrNull;
+    if (r == null || !r.ok) throw StateError('ReceivePaymentQuery failed: ${r?.statusMessage ?? 'no response'}');
+    for (final e in r.rets('ReceivePaymentRet')) {
+      final pay = QbPayment.fromXml(e);
+      if (pay.txnId.isEmpty) continue;
+      upsertPayment(pay);
+      _maxPaymentModified = _later(_maxPaymentModified, pay.timeModified);
+    }
+    if (r.iteratorId != null && r.remaining > 0) {
+      _iterator = r.iteratorId;
+      return;
+    }
+    for (final pid in _touched) {
+      refreshQbBilling(db, pid);
+    }
     _step = _Step.done;
     _finish(ok: true);
+  }
+
+  /// Casework job and customer for a QuickBooks customer or Customer:Job ListID.
+  (String?, String?) _linkFor(String? ref) {
+    if (ref == null) return (null, null);
+    final p = db.one('SELECT * FROM projects WHERE qb_list_id=? AND deleted=0', [ref]);
+    if (p != null) return (p.id, p.s('customer_id'));
+    var custRef = ref;
+    final q = _qbCustomers[ref];
+    if (q != null && q.isJob && q.parentListId != null) custRef = q.parentListId!;
+    final c = db.one('SELECT * FROM customers WHERE qb_list_id=? AND deleted=0', [custRef]);
+    if (c == null) return (null, null);
+    final open = db.select(
+        "SELECT id FROM projects WHERE customer_id=? AND deleted=0 AND status NOT IN ('closed','lost')", [c.id]);
+    return (open.length == 1 ? open.first.id : null, c.id);
+  }
+
+  /// Store one QuickBooks invoice and link it to a job. Public for tests.
+  void upsertInvoice(QbInvoice inv) {
+    var (projectId, customerId) = _linkFor(inv.customerListId);
+    if (projectId == null && inv.estimateTxnIds.isNotEmpty) {
+      final est = db.one('SELECT project_id, customer_id FROM qb_estimates WHERE qb_txn_id=? AND deleted=0',
+          [inv.estimateTxnIds.first]);
+      projectId = est?.ns('project_id');
+      customerId ??= est?.ns('customer_id');
+    }
+    final existing = db.one('SELECT * FROM qb_invoices WHERE qb_txn_id=?', [inv.txnId]);
+    final values = <String, Object?>{
+      'project_id': projectId ?? existing?.ns('project_id'),
+      'customer_id': customerId ?? existing?.ns('customer_id'),
+      'qb_txn_id': inv.txnId,
+      'ref_number': inv.refNumber,
+      'txn_date': inv.txnDate,
+      'due_date': inv.dueDate,
+      'subtotal': inv.subtotal,
+      'tax': inv.tax,
+      'total': money(inv.total),
+      'balance': inv.balance,
+      'is_paid': inv.isPaid ? 1 : 0,
+      'memo': inv.memo,
+      'estimate_txn_id': inv.estimateTxnIds.firstOrNull,
+      'qb_customer': inv.customerFullName,
+      'time_modified': inv.timeModified,
+      'deleted': 0,
+    };
+    if (existing == null) {
+      db.insert('qb_invoices', values);
+    } else {
+      db.update('qb_invoices', existing.id, values);
+    }
+    _invoices++;
+    final pid = values['project_id'] as String?;
+    if (pid == null) {
+      _note('Invoice #${inv.refNumber ?? '?'} (${inv.customerFullName}) is not linked to a job yet.');
+      return;
+    }
+    if (existing == null || existing.ns('project_id') != pid) {
+      log(db, pid, 'QuickBooks invoice #${inv.refNumber ?? ''}: ${inv.total.toStringAsFixed(2)}', kind: 'money');
+      advanceStatus(db, pid, 'approved', 'invoiced in QuickBooks');
+    }
+    _touched.add(pid);
+  }
+
+  /// Store one QuickBooks customer payment and link it to a job. Public for tests.
+  void upsertPayment(QbPayment pay) {
+    String? projectId, customerId;
+    for (final (txn, _) in pay.applied) {
+      final inv = db.one('SELECT project_id, customer_id FROM qb_invoices WHERE qb_txn_id=? AND deleted=0', [txn]);
+      if (inv?.ns('project_id') != null) {
+        projectId = inv!.s('project_id');
+        customerId = inv.ns('customer_id');
+        break;
+      }
+    }
+    if (projectId == null) (projectId, customerId) = _linkFor(pay.customerListId);
+    final existing = db.one('SELECT * FROM qb_payments WHERE qb_txn_id=?', [pay.txnId]);
+    final values = <String, Object?>{
+      'project_id': projectId ?? existing?.ns('project_id'),
+      'customer_id': customerId ?? existing?.ns('customer_id'),
+      'qb_txn_id': pay.txnId,
+      'ref_number': pay.refNumber,
+      'txn_date': pay.txnDate,
+      'amount': pay.amount,
+      'method': pay.method,
+      'applied': jsonEncode([for (final (t, a) in pay.applied) {'txn_id': t, 'amount': a}]),
+      'qb_customer': pay.customerFullName,
+      'time_modified': pay.timeModified,
+      'deleted': 0,
+    };
+    if (existing == null) {
+      db.insert('qb_payments', values);
+    } else {
+      db.update('qb_payments', existing.id, values);
+    }
+    _payments++;
+    final pid = values['project_id'] as String?;
+    if (pid == null) {
+      _note('Payment ${pay.amount.toStringAsFixed(2)} from ${pay.customerFullName} is not linked to a job yet.');
+      return;
+    }
+    if (existing == null) {
+      log(db, pid,
+          'Payment received in QuickBooks: ${pay.amount.toStringAsFixed(2)}${pay.method == null ? '' : ' (${pay.method})'}',
+          kind: 'money');
+    }
+    _touched.add(pid);
   }
 
   /// Store one QuickBooks estimate and link it to a job. Public for tests.
@@ -436,3 +599,31 @@ List<Map<String, dynamic>> qbEstimateLines(Rec e) =>
     ((jsonDecode(e.ns('lines') ?? '[]') as List).cast<Map<String, dynamic>>());
 
 bool quotesInQuickBooks(AppDb db) => settings(db)['quotes_in_quickbooks'] == '1';
+
+/// QuickBooks invoices and payments for a job (newest first).
+List<Rec> qbInvoicesFor(AppDb db, String projectId) => db.select(
+    'SELECT * FROM qb_invoices WHERE project_id=? AND deleted=0 ORDER BY txn_date DESC, time_modified DESC', [projectId]);
+List<Rec> qbPaymentsFor(AppDb db, String projectId) => db.select(
+    'SELECT * FROM qb_payments WHERE project_id=? AND deleted=0 ORDER BY txn_date DESC, time_modified DESC', [projectId]);
+
+/// What QuickBooks says the job was billed, paid and still owes.
+({double invoiced, double paid, double balance}) qbBilling(AppDb db, String projectId) {
+  final inv = qbInvoicesFor(db, projectId);
+  final pays = qbPaymentsFor(db, projectId);
+  return (
+    invoiced: money(inv.fold(0.0, (a, i) => a + i.d('total'))),
+    paid: money(pays.fold(0.0, (a, p) => a + p.d('amount'))),
+    balance: money(inv.fold(0.0, (a, i) => a + i.d('balance'))),
+  );
+}
+
+/// Move the job to Paid when QuickBooks shows every invoice paid and the work is done.
+void refreshQbBilling(AppDb db, String projectId) {
+  final inv = qbInvoicesFor(db, projectId);
+  final p = db.get('projects', projectId);
+  if (inv.isEmpty || p == null) return;
+  final allPaid = inv.every((i) => i.b('is_paid') || i.d('balance') <= 0.005);
+  if (allPaid && atLeast(p.s('status'), 'completed')) {
+    advanceStatus(db, projectId, 'paid', 'all QuickBooks invoices paid');
+  }
+}

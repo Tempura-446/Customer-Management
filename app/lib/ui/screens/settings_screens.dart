@@ -170,7 +170,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               leading: const Icon(Icons.account_balance_outlined),
               title: const Text('QuickBooks'),
-              subtitle: const Text('Customers & jobs to QuickBooks, estimates back to jobs'),
+              subtitle: const Text('Customers & jobs to QuickBooks; estimates, invoices and payments back to jobs'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => push(context, QuickBooksScreen(qbwc: svc.qbwc!, port: svc.hub!.port ?? defaultSyncPort)),
             ),

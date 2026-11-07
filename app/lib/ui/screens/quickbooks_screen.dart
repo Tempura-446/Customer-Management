@@ -78,6 +78,8 @@ class _QuickBooksScreenState extends State<QuickBooksScreen> {
               'so nobody types them twice.\n'
               '• Repeat customers already in QuickBooks are matched by name or phone and linked (not duplicated). '
               'QuickBooks customers Casework doesn\'t have yet are imported, so you find them when they call again.\n'
+              '• Invoices and customer payments in QuickBooks show on the job too, and the job moves to Paid once '
+              'every invoice is paid and the work is done.\n'
               '• Estimates you make in QuickBooks show on the Casework job (number, total, lines). The job moves '
               'to Quoted, and to Approved once the estimate becomes an invoice or sales order.\n'
               '• Nothing is deleted or changed in QuickBooks other than adding customers and jobs.'),
@@ -186,7 +188,7 @@ class QbEstimatesCard extends StatelessWidget {
     final p = db.get('projects', projectId);
     final estimates = qbEstimatesFor(db, projectId);
     return Section(
-      title: 'QuickBooks estimates',
+      title: 'QuickBooks',
       action: TextButton.icon(
         onPressed: () => _attach(context),
         icon: const Icon(Icons.attach_file, size: 18),
@@ -243,6 +245,45 @@ class QbEstimatesCard extends StatelessWidget {
               ],
             ),
           ),
+        if (qbInvoicesFor(db, projectId) case final invoices when invoices.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text('Invoices', style: Theme.of(context).textTheme.titleSmall),
+          for (final i in invoices)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text('Invoice #${i.s('ref_number')} · ${fmtMoney(i.d('total'))}'),
+              subtitle: Text([
+                fmtDate(i.ns('txn_date')),
+                if (!i.b('is_paid') && i.ns('due_date') != null) 'due ${fmtDate(i.ns('due_date'))}',
+                if (!i.b('is_paid')) 'owes ${fmtMoney(i.d('balance'))}',
+              ].join(' · ')),
+              trailing: StatusChip(i.b('is_paid') ? 'paid' : 'sent', label: i.b('is_paid') ? 'paid' : 'open'),
+            ),
+        ],
+        if (qbPaymentsFor(db, projectId) case final payments when payments.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text('Payments', style: Theme.of(context).textTheme.titleSmall),
+          for (final pay in payments)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(children: [
+                Expanded(
+                    child: Text([fmtDate(pay.ns('txn_date')), if (pay.ns('method') != null) pay.s('method')].join(' · '))),
+                Text(fmtMoney(pay.d('amount'))),
+              ]),
+            ),
+          Builder(builder: (context) {
+            final b = qbBilling(db, projectId);
+            return Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(children: [
+                const Expanded(child: Text('Still owed', style: TextStyle(fontWeight: FontWeight.w700))),
+                Text(fmtMoney(b.balance), style: const TextStyle(fontWeight: FontWeight.w700)),
+              ]),
+            );
+          }),
+        ],
         const SizedBox(height: 4),
         const Muted('PDFs of QuickBooks quotes and invoices you attach here are filed with the job (hidden from field staff).',
             size: 12),

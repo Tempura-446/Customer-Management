@@ -232,6 +232,8 @@ class AppDb extends ChangeNotifier {
     'purchase_orders': ['number'],
     'settings': ['key'],
     'qb_estimates': ['qb_txn_id'],
+    'qb_invoices': ['qb_txn_id'],
+    'qb_payments': ['qb_txn_id'],
     'mail_inbox': ['message_id'],
   };
 

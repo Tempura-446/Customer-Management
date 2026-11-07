@@ -175,12 +175,10 @@ Report buildReport(AppDb db, {DateTime? now, int months = 12}) {
       typeOf(orderType[p.s('project_id')]).collected += p.d('amount');
     }
   }
-  if (db.raw.select("SELECT 1 FROM sqlite_master WHERE type='table' AND name='qb_payments'").isNotEmpty) {
-    for (final p in db.select('SELECT amount, txn_date, project_id FROM qb_payments WHERE deleted=0')) {
-      if (at(p.ns('txn_date')) case final m?) {
-        m.collected += p.d('amount');
-        typeOf(p.ns('project_id') == null ? null : orderType[p.s('project_id')]).collected += p.d('amount');
-      }
+  for (final p in db.select('SELECT amount, txn_date, project_id FROM qb_payments WHERE deleted=0')) {
+    if (at(p.ns('txn_date')) case final m?) {
+      m.collected += p.d('amount');
+      typeOf(p.ns('project_id') == null ? null : orderType[p.s('project_id')]).collected += p.d('amount');
     }
   }
 

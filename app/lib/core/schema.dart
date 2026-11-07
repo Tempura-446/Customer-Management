@@ -148,6 +148,26 @@ const syncTables = <String, String>{
     lines TEXT,                             -- JSON [{item, desc, qty, rate, amount}]
     qb_customer TEXT,                       -- QuickBooks Customer:Job full name
     time_modified TEXT''',
+  // Invoices and customer payments made in QuickBooks, read the same way (main PC).
+  'qb_invoices': '''
+    project_id TEXT, customer_id TEXT,
+    qb_txn_id TEXT NOT NULL UNIQUE,
+    ref_number TEXT, txn_date TEXT, due_date TEXT,
+    subtotal REAL, tax REAL, total REAL,
+    balance REAL,                           -- still owed
+    is_paid INTEGER NOT NULL DEFAULT 0,
+    memo TEXT,
+    estimate_txn_id TEXT,                   -- the QuickBooks estimate it was made from
+    qb_customer TEXT,
+    time_modified TEXT''',
+  'qb_payments': '''
+    project_id TEXT, customer_id TEXT,
+    qb_txn_id TEXT NOT NULL UNIQUE,
+    ref_number TEXT, txn_date TEXT,
+    amount REAL, method TEXT,
+    applied TEXT,                           -- JSON [{txn_id, amount}] invoices it pays
+    qb_customer TEXT,
+    time_modified TEXT''',
   // Measurement emails read from the shared mailbox (by the main office PC).
   'mail_inbox': '''
     message_id TEXT NOT NULL UNIQUE,
@@ -168,7 +188,7 @@ const syncTables = <String, String>{
 
 /// Tables a "field" user (installer / measurer) never receives or sends:
 /// prices stay on the office side.
-const pricedTables = {'quotes', 'quote_items', 'invoices', 'payments', 'qb_estimates'};
+const pricedTables = {'quotes', 'quote_items', 'invoices', 'payments', 'qb_estimates', 'qb_invoices', 'qb_payments'};
 
 /// Local-only tables (never synced).
 const localSchema = '''
@@ -198,7 +218,7 @@ String createStatements() {
   });
   b.writeln('CREATE INDEX IF NOT EXISTS ix_projects_customer ON projects(customer_id);');
   for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files', 'selections',
-      'appointments', 'purchase_orders', 'qb_estimates']) {
+      'appointments', 'purchase_orders', 'qb_estimates', 'qb_invoices', 'qb_payments']) {
     b.writeln('CREATE INDEX IF NOT EXISTS ix_${t}_project ON $t(project_id);');
   }
   return b.toString();

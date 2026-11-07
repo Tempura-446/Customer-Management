@@ -350,6 +350,11 @@ void advanceStatus(AppDb db, String projectId, String status, [String? reason]) 
 
 /// Mark the job installed / delivered / picked up (also called when the install appointment is done).
 void markCompleted(AppDb db, String projectId, {String? reason}) {
+  _markCompleted(db, projectId, reason: reason);
+  refreshQbBilling(db, projectId); // already paid in QuickBooks: straight on to Paid
+}
+
+void _markCompleted(AppDb db, String projectId, {String? reason}) {
   final p = db.get('projects', projectId);
   if (p == null) return;
   db.tx(() {
@@ -445,7 +450,7 @@ void deleteProject(AppDb db, String id) => db.tx(() {
         'purchase_orders': ('po_items', 'po_id'),
       };
       for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files', 'selections',
-          'appointments', 'purchase_orders', 'qb_estimates']) {
+          'appointments', 'purchase_orders', 'qb_estimates', 'qb_invoices', 'qb_payments']) {
         for (final r in db.select('SELECT id FROM $t WHERE project_id=? AND deleted=0', [id])) {
           final child = children[t];
           if (child != null) {

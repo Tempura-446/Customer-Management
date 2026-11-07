@@ -35,6 +35,23 @@ ${invoiced ? '<LinkedTxn><TxnID>99-1</TxnID><TxnType>Invoice</TxnType><TxnDate>2
 <Quantity>52</Quantity><Rate>90.12</Rate><Amount>4686.00</Amount></EstimateLineRet>
 </EstimateLineGroupRet></EstimateRet>''';
 
+String invoiceRet(String txn, String ref, String customerListId, String customerName,
+        {required double balance, bool paid = false, String? estimate}) =>
+    '''
+<InvoiceRet><TxnID>$txn</TxnID><TimeModified>2026-11-06T11:00:00-05:00</TimeModified><CustomerRef><ListID>$customerListId</ListID>
+<FullName>${qbEscape(customerName)}</FullName></CustomerRef><TxnDate>2026-11-06</TxnDate><RefNumber>$ref</RefNumber>
+<DueDate>2026-11-20</DueDate><Subtotal>18936.00</Subtotal><SalesTaxTotal>1325.52</SalesTaxTotal>
+<AppliedAmount>-${20261.52 - balance}</AppliedAmount><BalanceRemaining>$balance</BalanceRemaining><IsPaid>$paid</IsPaid>
+${estimate != null ? '<LinkedTxn><TxnID>$estimate</TxnID><TxnType>Estimate</TxnType><TxnDate>2026-11-05</TxnDate><RefNumber>1043</RefNumber><LinkType>QUANTYPE</LinkType><Amount>20261.52</Amount></LinkedTxn>' : ''}
+</InvoiceRet>''';
+
+String paymentRet(String txn, String customerListId, String customerName, double amount, {String? applyTo}) => '''
+<ReceivePaymentRet><TxnID>$txn</TxnID><TimeModified>2026-11-07T09:00:00-05:00</TimeModified><CustomerRef><ListID>$customerListId</ListID>
+<FullName>${qbEscape(customerName)}</FullName></CustomerRef><TxnDate>2026-11-07</TxnDate><RefNumber>1201</RefNumber>
+<TotalAmount>$amount</TotalAmount><PaymentMethodRef><FullName>Check</FullName></PaymentMethodRef>
+${applyTo != null ? '<AppliedToTxnRet><TxnID>$applyTo</TxnID><TxnType>Invoice</TxnType><PaymentAmount>$amount</PaymentAmount></AppliedToTxnRet>' : ''}
+</ReceivePaymentRet>''';
+
 String soap(String method, Map<String, String> params) => '<?xml version="1.0" encoding="utf-8"?>'
     '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>'
     '<$method xmlns="http://developer.intuit.com/">'
@@ -201,7 +218,23 @@ void main() {
         '${estimateRet('E-1', '1043', '80000011-1', 'Smith, Jane:$janeNumber Kitchen', invoiced: true)}'
         '${estimateRet('E-2', '1044', '80000002-1', 'Repeat Customer Co', modified: '2026-11-06T10:00:00-05:00')}'
         '</EstimateQueryRs>'));
-    expect(pct, 100);
+    expect(pct, lessThan(100));
+
+    // 5. Invoices: Jane's (made from estimate 1043, linked by the job) and one with only the estimate link.
+    req = XmlDocument.parse(await next());
+    expect(req.findAllElements('InvoiceQueryRq'), hasLength(1));
+    expect(req.findAllElements('IncludeLinkedTxns').single.innerText, 'true');
+    expect(await reply(rs('<InvoiceQueryRs requestID="iq" statusCode="0" statusSeverity="Info" statusMessage="OK">'
+        '${invoiceRet('99-1', '5001', '80000011-1', 'Smith, Jane:$janeNumber Kitchen', balance: 10261.52, estimate: 'E-1')}'
+        '${invoiceRet('99-2', '5002', '80000099-1', 'Unknown:Job', balance: 0, paid: true, estimate: 'E-1')}'
+        '</InvoiceQueryRs>')), lessThan(100));
+
+    // 6. Payments: one applied to Jane's invoice.
+    req = XmlDocument.parse(await next());
+    expect(req.findAllElements('ReceivePaymentQueryRq'), hasLength(1));
+    expect(await reply(rs('<ReceivePaymentQueryRs requestID="pq" statusCode="0" statusSeverity="Info" statusMessage="OK">'
+        '${paymentRet('P-1', '80000001-1', 'Smith, Jane', 10000, applyTo: '99-1')}'
+        '</ReceivePaymentQueryRs>')), 100);
     expect(await next(), '', reason: 'nothing more to do');
     final close = result(await qbwc.handleSoap(soap('closeConnection', {'ticket': ticket})), 'closeConnection');
     expect(close, contains('estimate'));
@@ -217,6 +250,28 @@ void main() {
     expect(db.meta('qb_last_estimate_sync'), '2026-11-06T10:00:00-05:00');
     expect(sync.lastResult, contains('created in QuickBooks'));
     expect(sync.lastError, isNull);
+
+    // Invoices and payments are on Jane's job; the estimate link finds the job when the customer doesn't.
+    expect(qbInvoicesFor(db, janeJob).map((i) => i.s('ref_number')), containsAll(['5001', '5002']));
+    expect(qbPaymentsFor(db, janeJob).single.d('amount'), 10000);
+    expect(qbPaymentsFor(db, janeJob).single.s('method'), 'Check');
+    final b = qbBilling(db, janeJob);
+    expect((b.invoiced, b.paid, b.balance), (40523.04, 10000.0, 10261.52));
+    expect(db.meta('qb_last_invoice_sync'), '2026-11-06T11:00:00-05:00');
+    expect(sync.lastResult, contains('2 invoice(s) and 1 payment(s)'));
+    expect(db.get('projects', janeJob)!.s('status'), 'approved', reason: 'not paid in full yet, and not installed');
+    expect(db.select("SELECT * FROM notes WHERE project_id=? AND kind='money' AND body LIKE 'Payment received%'", [janeJob]),
+        hasLength(1));
+
+    // Installed, and QuickBooks later shows the balance paid: the job becomes Paid.
+    markCompleted(db, janeJob);
+    expect(db.get('projects', janeJob)!.s('status'), 'completed');
+    sync.begin();
+    sync.upsertInvoice(QbInvoice.fromXml(XmlDocument.parse(
+        invoiceRet('99-1', '5001', '80000011-1', 'Smith, Jane:$janeNumber Kitchen', balance: 0, paid: true)).rootElement));
+    refreshQbBilling(db, janeJob);
+    sync.end();
+    expect(db.get('projects', janeJob)!.s('status'), 'paid');
 
     // Next run only asks for estimates since then, and finds nothing new to create.
     final again = results(

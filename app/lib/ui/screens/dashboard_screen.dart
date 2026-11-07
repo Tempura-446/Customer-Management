@@ -57,6 +57,7 @@ class DashboardScreen extends StatelessWidget {
             for (final i in db.select("SELECT id, amount FROM invoices WHERE status='sent' AND deleted=0")) {
               receivable += i.d('amount') - invoicePaid(db, i.id);
             }
+            receivable += (db.scalar('SELECT SUM(balance) FROM qb_invoices WHERE deleted=0 AND is_paid=0') as num?) ?? 0;
           }
           return PageBody(maxWidth: 1400, children: [
             if (svc.storageWarning != null) WarnBanner(svc.storageWarning!),
