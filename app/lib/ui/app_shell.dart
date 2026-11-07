@@ -208,7 +208,7 @@ class _MorePage extends StatelessWidget {
         ]),
         const SizedBox(height: 16),
         if (svc.prices) tile(Icons.mail_outline, 'Email inbox', 'Measurement emails waiting to be filed', const MailInboxScreen()),
-        tile(Icons.sync, syncLabel, svc.isHub ? 'Connected workstations and phones' : 'Sync with the office PC', syncPage),
+        tile(Icons.sync, syncLabel, svc.isHub ? 'Connected workstations and phones' : 'Sync with the main office PC', syncPage),
         tile(Icons.settings_outlined, 'Settings', 'Business details, staff and more', const SettingsScreen()),
         if (svc.isHub)
           Padding(

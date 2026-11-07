@@ -207,7 +207,7 @@ class PhoneSyncScreen extends StatelessWidget {
     final pending = svc.client!.pendingChanges();
     final msg = pending > 0
         ? 'This phone has $pending change(s) not yet synced to the PC. They will be lost if you unpair now. Unpair anyway?'
-        : 'Unpair this phone from ${svc.client!.hubName ?? 'the office PC'}? You can pair it again any time.';
+        : 'Unpair this phone from ${svc.client!.hubName ?? 'the main office PC'}? You can pair it again any time.';
     if (await confirm(context, msg, ok: 'Unpair', danger: true)) {
       svc.client!.unpair();
       svc.forgetUser();
@@ -333,7 +333,7 @@ class _PhonePairScreenState extends State<PhonePairScreen> {
     final c = svc.client!;
     setState(() {
       _busy = true;
-      _status = 'Connecting to the office PC…';
+      _status = 'Connecting to the main office PC…';
     });
     try {
       final name = _deviceName.text.trim().isEmpty ? _defaultName() : _deviceName.text.trim();

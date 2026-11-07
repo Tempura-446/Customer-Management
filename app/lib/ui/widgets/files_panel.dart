@@ -17,7 +17,7 @@ Future<void> openStoredFile(BuildContext context, Rec f) async {
     var path = svc.files.localPath(f.s('sha256'));
     if (path == null) {
       if (svc.client == null) throw Exception('File is missing from this PC.');
-      if (context.mounted) toast(context, 'Downloading ${f.s('name')} from the office PC…');
+      if (context.mounted) toast(context, 'Downloading ${f.s('name')} from the main office PC…');
       path = await svc.client!.fetchBlob(f.s('sha256'));
     }
     final r = await OpenFilex.open(path);

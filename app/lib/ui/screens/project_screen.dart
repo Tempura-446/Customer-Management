@@ -461,6 +461,7 @@ class _NotesCardState extends State<_NotesCard> {
             ),
           ),
           IconButton(
+            tooltip: 'Add note',
             icon: const Icon(Icons.send),
             onPressed: () {
               addNote(db, widget.projectId, _ctl.text, kind: _kind);

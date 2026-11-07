@@ -254,6 +254,7 @@ class _MeasurementFormScreenState extends State<MeasurementFormScreen> {
       );
 
   Widget _remove(int i) => IconButton(
+        tooltip: 'Remove line',
         icon: const Icon(Icons.close, size: 18),
         onPressed: () => setState(() => _lines.removeAt(i).dispose()),
       );

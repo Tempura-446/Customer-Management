@@ -247,6 +247,7 @@ class InvoiceScreen extends StatelessWidget {
                 title: Text('${fmtMoney(pay.d('amount'))} · ${pay.s('method')}'),
                 subtitle: Text([pay.s('paid_on'), if (pay.ns('reference') != null) pay.s('reference')].join(' · ')),
                 trailing: IconButton(
+                  tooltip: 'Remove payment',
                   icon: const Icon(Icons.delete_outline, size: 20),
                   onPressed: () async {
                     if (await confirm(context, 'Remove this payment?', ok: 'Remove', danger: true) &&

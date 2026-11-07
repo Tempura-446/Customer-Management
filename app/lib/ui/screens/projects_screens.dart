@@ -234,7 +234,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         const SizedBox(height: 8),
         Muted(context.svc.isHub
             ? 'A job number (J-YYYY-###) is assigned automatically. Use it to name the 2020 file and folders.'
-            : 'The job number is assigned by the office PC at the next sync. You can keep working offline.'),
+            : 'The job number is assigned by the main office PC at the next sync. You can keep working offline.'),
         const SizedBox(height: 16),
         Align(alignment: Alignment.centerLeft, child: FilledButton(onPressed: _save, child: const Text('Save'))),
       ]),

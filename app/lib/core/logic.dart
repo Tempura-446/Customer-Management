@@ -701,7 +701,7 @@ void declineQuote(AppDb db, String qid) {
 /// supersedes the old one, so only one price is ever "live".
 String reviseQuote(AppDb db, String qid) {
   final q = db.get('quotes', qid)!;
-  if (q.ns('number') == null) throw BusinessError('Sync with the office PC first so this quote gets its number.');
+  if (q.ns('number') == null) throw BusinessError('Sync with the main office PC first so this quote gets its number.');
   if (q.s('status') == 'accepted' &&
       db.one("SELECT 1 FROM invoices WHERE quote_id=? AND deleted=0 AND status<>'void'", [qid]) != null) {
     throw BusinessError('This quote already has invoices. Void them first, or quote the change separately.');
