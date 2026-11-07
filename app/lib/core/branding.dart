@@ -27,7 +27,7 @@ Uint8List? businessLogo(Map<String, String> settings) {
 /// 900 x 360 px and stored as PNG (transparency kept). Throws BusinessError if it can't be read.
 void setBusinessLogo(AppDb db, Uint8List bytes) {
   final decoded = img.decodeImage(bytes);
-  if (decoded == null) throw BusinessError("That file isn't a picture Cabinet CRM can read. Use a PNG or JPG.");
+  if (decoded == null) throw BusinessError("That file isn't a picture Casework can read. Use a PNG or JPG.");
   var im = decoded;
   if (im.width > 900 || im.height > 360) {
     final scale = [900 / im.width, 360 / im.height].reduce((a, b) => a < b ? a : b);

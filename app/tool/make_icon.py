@@ -1,4 +1,4 @@
-"""Draws the Cabinet CRM app icon (a shaker cabinet front) as PNGs.
+"""Draws the Casework app icon (a shaker cabinet front) as PNGs.
 
     python3 tool/make_icon.py
     dart run flutter_launcher_icons          # then generates every platform size

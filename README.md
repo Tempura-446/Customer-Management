@@ -1,4 +1,4 @@
-# Cabinet CRM: Measure → 2020 Design → Quote → Invoice
+# Casework (cabinet shop CRM): Measure → 2020 Design → Quote → Invoice
 
 Standalone customer-management software for cabinet and kitchen designers who work in **2020 Design**.
 
@@ -106,7 +106,7 @@ Details:
 
 ### Stronger PDFs with ZPDF (optional)
 
-If **ZPDF** (the PDF-Manager toolkit) is installed on a computer, Cabinet CRM finds it and uses it:
+If **ZPDF** (the PDF-Manager toolkit) is installed on a computer, Casework finds it and uses it:
 
 - **Sharper job packets.** The original drawing PDFs (e.g. exported from 2020) and the techs' measurement PDFs are
   merged in as real pages, sharp when zoomed and searchable. The packet gets a bookmark per part and page numbers
@@ -153,39 +153,39 @@ no delivery date after 3 days. The dashboard also lists **materials arriving thi
 
 ## Backups
 
-**Settings → Backups** (main PC). Choose a folder on an external drive, a NAS or a network share. Cabinet CRM then
+**Settings → Backups** (main PC). Choose a folder on an external drive, a NAS or a network share. Casework then
 backs up every day while the app is open:
 
 - **Database:** a safe copy of the database, taken while running. The last 14 are kept, or a number you choose.
 - **Job files:** a copy of all job folders (`Projects`, `Email inbox`). New and changed files are added each day;
   nothing is ever deleted from the backup.
 
-**Restore:** choose a database copy. Cabinet CRM swaps it in the next time it starts, and keeps your current data as
+**Restore:** choose a database copy. Casework swaps it in the next time it starts, and keeps your current data as
 `cabinet_crm.before-restore-….db`. **Restore missing files** copies back any job files that have gone missing. The
 dashboard warns the owner when backups are not set up or have not run for 3 days.
 
 ## QuickBooks Desktop (Enterprise 14)
 
-**Settings → QuickBooks** (main PC, owner). Cabinet CRM connects to QuickBooks through Intuit's **Web Connector**,
+**Settings → QuickBooks** (main PC, owner). Casework connects to QuickBooks through Intuit's **Web Connector**,
 which comes with QuickBooks:
 
-- **Customers and jobs → QuickBooks.** New Cabinet CRM customers and jobs are created as *Customer* and
+- **Customers and jobs → QuickBooks.** New Casework customers and jobs are created as *Customer* and
   *Customer:Job* (e.g. `Jane Smith:J-2026-014 Kitchen`), so nobody types them twice.
 - **Repeat customers are matched, not duplicated.** Matching is by name in any order ("Smith, Jane" = "Jane Smith"),
-  or by phone number. QuickBooks customers Cabinet CRM doesn't know yet are imported, so you find them when they call
+  or by phone number. QuickBooks customers Casework doesn't know yet are imported, so you find them when they call
   again.
 - **Estimates → jobs.** Estimates made in QuickBooks appear on the job with number, total and lines. They feed the job
   packet, supplier-order lines and the order-type checks. A new estimate moves the job to *Quoted*; once it's turned
   into a sales order or invoice, to *Approved*.
 - **Quotes & invoices are done in QuickBooks** (switch on that page): jobs then show the QuickBooks estimates card
-  instead of Cabinet CRM's quote and invoice cards. Use **Attach QuickBooks PDF** to file the PDFs of your QuickBooks
+  instead of Casework's quote and invoice cards. Use **Attach QuickBooks PDF** to file the PDFs of your QuickBooks
   quotes and invoices with the job.
 - **QuickBooks is never changed beyond adding customers and jobs.**
 
 **Setup:**
 
 - **Where:** run the Web Connector on the **main office PC**. It must also have QuickBooks installed. The Web
-  Connector only talks to Cabinet CRM on the same computer.
+  Connector only talks to Casework on the same computer.
 - **Steps:** on the QuickBooks page, set a password, save the **.qwc** file, add it in the Web Connector, then allow
   access in QuickBooks. The page walks you through each step.
 - **Untested against real QuickBooks.** The sync was built and tested against sample QuickBooks responses only, so
@@ -206,7 +206,7 @@ On the PC, each person signs in with a PIN. Each phone is paired to one person.
 On first start, Windows asks how the computer will be used:
 
 - **Main office PC.** Choose this on **one** computer. It stores the master copy (`Documents\Cabinet CRM`) and serves
-  everyone else. Ideally it's a PC that stays on during work hours. Tick "Start Cabinet CRM when Windows starts" in
+  everyone else. Ideally it's a PC that stays on during work hours. Tick "Start Casework when Windows starts" in
   the installer, and set Windows to never sleep while plugged in. It can sit at the sign-in screen; sync still runs.
 - **Workstation.** Every other office PC. It keeps a local copy, syncs with the main PC every 15 seconds and a few
   seconds after any change, and keeps working if the network drops.
@@ -220,7 +220,7 @@ You can change a computer's role later under **Settings → This computer**.
 
 **Why not just put the file on a network drive / server share?** The database is a single SQLite file, and SQLite
 gets corrupted when several computers open it over a network share (SMB). The app warns you if its data folder is on a
-network drive. If you have a server, install Cabinet CRM on it as the **main office PC**: workstations then use the
+network drive. If you have a server, install Casework on it as the **main office PC**: workstations then use the
 server, the safe way.
 
 **2020 files on a workstation.** Opening a `.kit` downloads it and opens it in 2020. If you edit and save it, the file
@@ -260,7 +260,7 @@ The app password is stored in Windows Credential Manager on the main PC, not in 
 ## How phone ↔ PC sync works
 
 1. On the PC: **Devices → Add a phone or computer**, then pick the person. A QR code appears; it works once and expires after 15 minutes.
-2. On the phone: open Cabinet CRM, then **Scan QR code on the PC**. You can also type the address and code shown under the QR.
+2. On the phone: open Casework, then **Scan QR code on the PC**. You can also type the address and code shown under the QR.
 3. From then on the phone works offline and syncs automatically when it can reach the main PC:
    on start, every minute, a few seconds after changes, when the app is reopened, or when you tap **Sync now**.
 
@@ -292,13 +292,13 @@ bar. If your logo already spells out the business name, tick **My logo already s
 
 | File | What to do |
 |---|---|
-| `CabinetCRM-Setup-x.y.z.exe` | **Windows installer.** Run it on each PC and click through. It installs to Program Files, adds Start menu and optional desktop shortcuts, can start the app with Windows (tick this on the main office PC), allows sync through the firewall on private networks, and includes the Visual C++ runtime. A newer installer upgrades in place. Uninstall from Settings → Apps; your data in `Documents\Cabinet CRM` is never deleted. Until the installer is code-signed, SmartScreen shows "Windows protected your PC": click **More info → Run anyway**. |
-| `CabinetCRM-Android.apk` | Copy it to the phone and install. Allow "install unknown apps" for your file manager. |
+| `Casework-Setup-x.y.z.exe` | **Windows installer.** Run it on each PC and click through. It installs to Program Files, adds Start menu and optional desktop shortcuts, can start the app with Windows (tick this on the main office PC), allows sync through the firewall on private networks, and includes the Visual C++ runtime. A newer installer upgrades in place. Uninstall from Settings → Apps; your data in `Documents\Cabinet CRM` is never deleted. Until the installer is code-signed, SmartScreen shows "Windows protected your PC": click **More info → Run anyway**. |
+| `Casework-Android.apk` | Copy it to the phone and install. Allow "install unknown apps" for your file manager. |
 | iPhone | CI checks that the iPhone app builds. Installing it needs an Apple Developer account ($99/yr) and TestFlight: see the notes in `.github/workflows/build.yml`. |
 
 ## Backups
 
-All data is in **`Documents\Cabinet CRM`** on the PC: `data\cabinet_crm.db` plus the `Projects` folders.
+All data is in **`Documents\Cabinet CRM`** on the PC (the folder keeps its original name so upgrades find it): `data\cabinet_crm.db` plus the `Projects` folders.
 Back up that folder, for example with an external drive or File History. To keep the data elsewhere, set the
 `CABINET_CRM_DATA` environment variable to another folder before starting the app.
 

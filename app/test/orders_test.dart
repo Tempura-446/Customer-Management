@@ -80,7 +80,7 @@ void main() {
     expect(db.get('purchase_orders', po), isNull);
   });
 
-  test('lines from a QuickBooks estimate when there is no Cabinet CRM quote', () {
+  test('lines from a QuickBooks estimate when there is no Casework quote', () {
     db.insert('qb_estimates', {
       'project_id': pid, 'qb_txn_id': 'T-1', 'ref_number': '1001', 'total': 5000, 'accepted': 1,
       'lines': jsonEncode([

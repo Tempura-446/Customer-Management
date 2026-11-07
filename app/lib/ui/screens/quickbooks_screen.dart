@@ -54,7 +54,7 @@ class _QuickBooksScreenState extends State<QuickBooksScreen> {
     final bytes = Uint8List.fromList(utf8.encode(widget.qbwc.qwcFile(port: widget.port)));
     await attempt(context, () async {
       final uri = await FilePicker.saveFile(
-        fileName: 'CabinetCRM.qwc',
+        fileName: 'Casework.qwc',
         bytes: bytes,
         mimeType: 'application/xml',
         dialogTitle: 'Save the Web Connector file',
@@ -71,14 +71,14 @@ class _QuickBooksScreenState extends State<QuickBooksScreen> {
       body: ListenableBuilder(
         listenable: _sync,
         builder: (context, _) => PageBody(maxWidth: 820, children: [
-          const Text('Cabinet CRM works with QuickBooks Desktop (Enterprise 14) through Intuit\'s Web Connector, '
+          const Text('Casework works with QuickBooks Desktop (Enterprise 14) through Intuit\'s Web Connector, '
               'which comes with QuickBooks:'),
           const SizedBox(height: 6),
-          const Text('• New customers and jobs from Cabinet CRM are created in QuickBooks as Customer:Job, '
+          const Text('• New customers and jobs from Casework are created in QuickBooks as Customer:Job, '
               'so nobody types them twice.\n'
               '• Repeat customers already in QuickBooks are matched by name or phone and linked (not duplicated). '
-              'QuickBooks customers Cabinet CRM doesn\'t have yet are imported, so you find them when they call again.\n'
-              '• Estimates you make in QuickBooks show on the Cabinet CRM job (number, total, lines). The job moves '
+              'QuickBooks customers Casework doesn\'t have yet are imported, so you find them when they call again.\n'
+              '• Estimates you make in QuickBooks show on the Casework job (number, total, lines). The job moves '
               'to Quoted, and to Approved once the estimate becomes an invoice or sales order.\n'
               '• Nothing is deleted or changed in QuickBooks other than adding customers and jobs.'),
           const SizedBox(height: 12),
@@ -93,7 +93,7 @@ class _QuickBooksScreenState extends State<QuickBooksScreen> {
             contentPadding: EdgeInsets.zero,
             value: _sync.importCustomers,
             onChanged: (v) => _sync.configure(importCustomers: v),
-            title: const Text('Import QuickBooks customers into Cabinet CRM'),
+            title: const Text('Import QuickBooks customers into Casework'),
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -107,7 +107,7 @@ class _QuickBooksScreenState extends State<QuickBooksScreen> {
             value: quotesInQuickBooks(db),
             onChanged: (v) => setState(() => setSetting(db, 'quotes_in_quickbooks', v ? '1' : '0')),
             title: const Text('Quotes & invoices are done in QuickBooks'),
-            subtitle: const Text('Jobs show QuickBooks estimates instead of Cabinet CRM quotes and invoices.'),
+            subtitle: const Text('Jobs show QuickBooks estimates instead of Casework quotes and invoices.'),
           ),
           Section(
             title: 'Set up (once)',
@@ -129,21 +129,21 @@ class _QuickBooksScreenState extends State<QuickBooksScreen> {
               ]),
               const SizedBox(height: 12),
               Row(children: [
-                const Expanded(child: Text('2. Save the Web Connector file (CabinetCRM.qwc):')),
+                const Expanded(child: Text('2. Save the Web Connector file (Casework.qwc):')),
                 OutlinedButton.icon(onPressed: _saveQwc, icon: const Icon(Icons.download), label: const Text('Save .qwc file')),
               ]),
               const SizedBox(height: 12),
               const Text(
                   '3. On THIS PC, open QuickBooks as the Admin user, in single-user mode the first time, with your company file.\n'
                   '4. In QuickBooks: File › Update Web Services (or Start menu › QuickBooks Web Connector).\n'
-                  '5. In the Web Connector: Add an application › choose CabinetCRM.qwc › OK.\n'
-                  '6. QuickBooks asks whether to allow Cabinet CRM: choose "Yes, always; allow access even if QuickBooks is '
+                  '5. In the Web Connector: Add an application › choose Casework.qwc › OK.\n'
+                  '6. QuickBooks asks whether to allow Casework: choose "Yes, always; allow access even if QuickBooks is '
                   'not running", log in as Admin (or a user with access to customers and estimates), Continue, Done.\n'
                   '7. Back in the Web Connector: type the password from step 1 in the Password column (Yes to save it), '
                   'tick "Auto-Run" and set "Every_Min" to 15.\n'
                   '8. Click "Update Selected" to run the first sync now. You can switch QuickBooks back to multi-user mode afterwards.\n\n'
-                  'The Web Connector must run on this PC (the main office PC) because it only talks to Cabinet CRM here. '
-                  'Cabinet CRM must be open (it can sit at the sign-in screen).'),
+                  'The Web Connector must run on this PC (the main office PC) because it only talks to Casework here. '
+                  'Casework must be open (it can sit at the sign-in screen).'),
             ]),
           ),
           Section(

@@ -62,7 +62,7 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
     if (!await confirm(
         context,
         'A workstation keeps no master copy: it connects to the main office PC over the network. '
-        'Cabinet CRM will close; open it again to connect.',
+        'Casework will close; open it again to connect.',
         ok: 'Make this a workstation')) {
       return;
     }
@@ -87,7 +87,7 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     const AppIcon(size: 72),
                     const SizedBox(height: 8),
-                    Text('Welcome to Cabinet CRM',
+                    Text('Welcome to Casework',
                         textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
                     const SizedBox(height: 4),
                     const Muted('This PC will hold the master copy of your customers, jobs and files. '

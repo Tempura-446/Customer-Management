@@ -352,7 +352,7 @@ void markCompleted(AppDb db, String projectId, {String? reason}) {
   if (p == null) return;
   db.tx(() {
     advanceStatus(db, projectId, 'completed', reason ?? completedLabel(p.ns('order_type')).toLowerCase());
-    // Already fully paid (Cabinet CRM invoices)? Then it is done.
+    // Already fully paid (Casework invoices)? Then it is done.
     final acc = acceptedQuote(db, projectId);
     if (acc != null && quoteBilling(db, acc.id).total > 0 && quoteBilling(db, acc.id).outstanding <= 0.005) {
       advanceStatus(db, projectId, 'paid', 'balance collected');

@@ -60,7 +60,7 @@ class SyncClient extends ChangeNotifier {
 
   /// [payload] is the JSON from the QR code shown on the PC.
   Future<void> pair(Map<String, dynamic> payload, {required String deviceName}) async {
-    if (payload['app'] != 'cabinetcrm') throw SyncException('That QR code is not from the Cabinet CRM PC app.');
+    if (payload['app'] != 'cabinetcrm') throw SyncException('That QR code is not from the Casework PC app.');
     final port = payload['port'];
     final hosts = ((payload['hosts'] as List?) ?? const []).map((h) => '$h:$port').toList();
     final base = await _reach(hosts, payload['hub'] as String);

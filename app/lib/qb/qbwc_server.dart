@@ -34,10 +34,10 @@ class QbwcService {
   /// The .QWC file you add to the Web Connector ("Add an application").
   String qwcFile({required int port}) => '''<?xml version="1.0"?>
 <QBWCXML>
-  <AppName>Cabinet CRM</AppName>
+  <AppName>Casework</AppName>
   <AppID></AppID>
   <AppURL>http://localhost:$port/qbwc</AppURL>
-  <AppDescription>Cabinet CRM: sends new customers and jobs to QuickBooks and brings estimates back to the jobs.</AppDescription>
+  <AppDescription>Casework: sends new customers and jobs to QuickBooks and brings estimates back to the jobs.</AppDescription>
   <AppSupport>http://localhost:$port/qbwc/support</AppSupport>
   <UserName>$qbwcUser</UserName>
   <OwnerID>${sync.ownerId}</OwnerID>
@@ -110,7 +110,7 @@ class QbwcService {
       case 'closeConnection':
         sync.end();
         _tickets.remove(arg('ticket'));
-        return _result(method, 'Cabinet CRM: ${sync.lastResult ?? 'done'}');
+        return _result(method, 'Casework: ${sync.lastResult ?? 'done'}');
       default:
         throw ArgumentError('Unknown Web Connector call $method');
     }
@@ -147,13 +147,13 @@ class QbwcService {
   static String _fault(String message) => _envelope(
       '<soap:Fault><faultcode>soap:Server</faultcode><faultstring>${qbEscape(message)}</faultstring></soap:Fault>');
 
-  String _helpPage(bool support) => '<!doctype html><meta charset="utf-8"><title>Cabinet CRM · QuickBooks</title>'
+  String _helpPage(bool support) => '<!doctype html><meta charset="utf-8"><title>Casework · QuickBooks</title>'
       '<body style="font-family:sans-serif;max-width:640px;margin:40px auto">'
-      '<h2>Cabinet CRM ↔ QuickBooks</h2>'
+      '<h2>Casework ↔ QuickBooks</h2>'
       '<p>This address is used by the QuickBooks Web Connector on this PC. '
-      'Set it up in Cabinet CRM under Settings › QuickBooks.</p>'
+      'Set it up in Casework under Settings › QuickBooks.</p>'
       '<p>Last run: ${qbEscape(sync.lastRun ?? 'never')}<br>Result: ${qbEscape(sync.lastResult ?? '-')}</p>'
-      '${support ? '<p>Help: in Cabinet CRM open Settings › QuickBooks for step-by-step instructions.</p>' : ''}'
+      '${support ? '<p>Help: in Casework open Settings › QuickBooks for step-by-step instructions.</p>' : ''}'
       '</body>';
 
   /// WSDL for the Web Connector service (document/literal, SOAP 1.1).

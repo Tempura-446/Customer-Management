@@ -62,7 +62,7 @@ class _PdfToolsScreenState extends State<PdfToolsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('PDF tools')),
       body: PageBody(maxWidth: 760, children: [
-        const Text('Cabinet CRM can use ZPDF (your PDF-Manager toolkit) when it is installed on this computer:'),
+        const Text('Casework can use ZPDF (your PDF-Manager toolkit) when it is installed on this computer:'),
         const SizedBox(height: 6),
         const Text('• Job packets: the original drawing and measurement PDFs are merged in as real pages, sharp when zoomed '
             'and searchable, with a bookmark for each part and page numbers across the whole packet.\n'
@@ -98,7 +98,7 @@ class _PdfToolsScreenState extends State<PdfToolsScreen> {
           child: Text('1. Open the PDF-Manager repository on GitHub → Code → Download ZIP, and unzip it.\n'
               '2. Double-click "Install ZPDF.cmd" (More info → Run anyway if Windows asks).\n'
               '3. Come back here and click "Look again".\n\n'
-              'Cabinet CRM looks in %LOCALAPPDATA%\\PDF Manager\\app (where the installer puts it) and for "pdfm" '
+              'Casework looks in %LOCALAPPDATA%\\PDF Manager\\app (where the installer puts it) and for "pdfm" '
               'on the PATH. The standalone ZPDF app (ZPDF.exe) only opens a window, so use the installer version.'),
         ),
       ]),

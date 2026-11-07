@@ -68,8 +68,8 @@ jobs:
       - if: env.RELEASE_TAG == ''
         uses: actions/upload-artifact@v4
         with:
-          name: CabinetCRM-Windows-Setup
-          path: app/build/installer/CabinetCRM-Setup-*.exe
+          name: Casework-Windows-Setup
+          path: app/build/installer/Casework-Setup-*.exe
           retention-days: 5
           compression-level: 0
       # Version tags (v1.0.0): attach to the GitHub Release (doesn't use Actions storage).
@@ -78,8 +78,8 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           target_commitish: ${{ github.sha }}
-          name: Cabinet CRM ${{ env.RELEASE_TAG }}
-          files: app/build/installer/CabinetCRM-Setup-*.exe
+          name: Casework ${{ env.RELEASE_TAG }}
+          files: app/build/installer/Casework-Setup-*.exe
           generate_release_notes: true
 
   android:
@@ -102,12 +102,12 @@ jobs:
       # Signed with the debug key for now (fine for sideloading on your own phones).
       # For Google Play, add a keystore as secrets and configure signingConfigs.
       - run: flutter build apk --release
-      - run: cp build/app/outputs/flutter-apk/app-release.apk CabinetCRM-Android.apk
+      - run: cp build/app/outputs/flutter-apk/app-release.apk Casework-Android.apk
       - if: env.RELEASE_TAG == ''
         uses: actions/upload-artifact@v4
         with:
-          name: CabinetCRM-Android
-          path: app/CabinetCRM-Android.apk
+          name: Casework-Android
+          path: app/Casework-Android.apk
           retention-days: 5
           compression-level: 0
       - if: env.RELEASE_TAG != ''
@@ -115,7 +115,7 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           target_commitish: ${{ github.sha }}
-          files: app/CabinetCRM-Android.apk
+          files: app/Casework-Android.apk
 
   ios:
     needs: test

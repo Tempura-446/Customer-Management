@@ -41,7 +41,7 @@ class CrmApp extends StatelessWidget {
   Widget build(BuildContext context) => ServicesScope(
         services: services,
         child: MaterialApp(
-          title: 'Cabinet CRM',
+          title: 'Casework',
           debugShowCheckedModeBanner: false,
           theme: appTheme(Brightness.light),
           darkTheme: appTheme(Brightness.dark),
@@ -62,7 +62,7 @@ class _ChooseModeAppState extends State<_ChooseModeApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: 'Cabinet CRM',
+        title: 'Casework',
         debugShowCheckedModeBanner: false,
         theme: appTheme(Brightness.light),
         darkTheme: appTheme(Brightness.dark),
@@ -76,7 +76,7 @@ class _ChooseModeAppState extends State<_ChooseModeApp> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     const AppIcon(size: 80),
                     const SizedBox(height: 8),
-                    Text('Welcome to Cabinet CRM',
+                    Text('Welcome to Casework',
                         textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
                     const SizedBox(height: 4),
                     const Text('How will this computer be used?', textAlign: TextAlign.center),

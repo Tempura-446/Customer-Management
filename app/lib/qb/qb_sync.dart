@@ -1,10 +1,10 @@
 /// QuickBooks Desktop sync engine (driven by the QuickBooks Web Connector, see qbwc_server.dart).
 ///
 /// One run:
-///   1. read all QuickBooks customers and jobs → link them to Cabinet CRM customers and jobs
+///   1. read all QuickBooks customers and jobs → link them to Casework customers and jobs
 ///      (repeat customers are matched by name or phone, never duplicated) and import QuickBooks
-///      customers Cabinet CRM doesn't have yet;
-///   2. create Cabinet CRM customers and jobs that are missing in QuickBooks (as Customer:Job);
+///      customers Casework doesn't have yet;
+///   2. create Casework customers and jobs that are missing in QuickBooks (as Customer:Job);
 ///   3. read estimates changed since the last run → show them on the job, move the job to
 ///      Quoted / Approved.
 ///
@@ -227,7 +227,7 @@ class QbSync extends ChangeNotifier {
         _note('Several QuickBooks customers match ${c.s('name')}: not linked. Link it by hand in QuickBooks names.');
       }
     }
-    // Import QuickBooks customers Cabinet CRM doesn't know (repeat customers).
+    // Import QuickBooks customers Casework doesn't know (repeat customers).
     if (importCustomers) {
       for (final q in topLevel.where((q) => q.isActive && !linkedIds.contains(q.listId))) {
         db.insert('customers', {
@@ -369,7 +369,7 @@ class QbSync extends ChangeNotifier {
         projectId = p.id;
         customerId = p.s('customer_id');
       } else {
-        // Estimate on the customer itself (or on a QuickBooks job not linked to a Cabinet CRM job).
+        // Estimate on the customer itself (or on a QuickBooks job not linked to a Casework job).
         var custRef = ref;
         final q = _qbCustomers[ref];
         if (q != null && q.isJob && q.parentListId != null) custRef = q.parentListId!;

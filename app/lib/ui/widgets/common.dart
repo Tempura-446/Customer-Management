@@ -585,7 +585,7 @@ class BusinessLogo extends StatelessWidget {
   }
 }
 
-/// Cabinet CRM's own icon (shown where no business logo is set).
+/// Casework's own icon (shown where no business logo is set).
 class AppIcon extends StatelessWidget {
   const AppIcon({super.key, this.size = 48});
   final double size;

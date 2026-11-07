@@ -202,7 +202,7 @@ List<PoLine> linesFromSelections(AppDb db, String projectId, {String? category})
           PoLine('${s.s('item')}: ${s.s('choice')}', notes: s.s('notes')),
     ];
 
-/// Suggested order lines from the accepted Cabinet CRM quote, or the latest QuickBooks estimate.
+/// Suggested order lines from the accepted Casework quote, or the latest QuickBooks estimate.
 List<PoLine> linesFromQuote(AppDb db, String projectId) {
   final acc = acceptedQuote(db, projectId);
   if (acc != null) {

@@ -56,7 +56,7 @@ class _BackupScreenState extends State<BackupScreen> {
       barrierDismissible: false,
       builder: (c) => const AlertDialog(
         title: Text('Restart needed'),
-        content: Text('Close Cabinet CRM and open it again to finish the restore.'),
+        content: Text('Close Casework and open it again to finish the restore.'),
       ),
     );
   }
@@ -70,10 +70,10 @@ class _BackupScreenState extends State<BackupScreen> {
             final snaps = b.snapshots();
             return PageBody(maxWidth: 820, children: [
               const Text('Everything lives on this main office PC: the database and the job folders. '
-                  'Cabinet CRM copies them to a backup folder once a day while it is open.'),
+                  'Casework copies them to a backup folder once a day while it is open.'),
               const SizedBox(height: 8),
               if (b.restorePending)
-                const WarnBanner('A restore is waiting. Close and reopen Cabinet CRM to finish it.'),
+                const WarnBanner('A restore is waiting. Close and reopen Casework to finish it.'),
               if (b.lastError != null) WarnBanner('Last backup failed: ${b.lastError}'),
               Section(
                 title: 'Settings',

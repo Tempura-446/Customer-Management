@@ -378,7 +378,7 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('Measurement email')),
         body: PageBody(maxWidth: 760, children: [
-          const Text('Cabinet CRM reads the shared measurement mailbox on this PC and files each email '
+          const Text('Casework reads the shared measurement mailbox on this PC and files each email '
               'into the job whose site address is in the subject, as a measurement record with the PDFs and photos. '
               'Emails it can\'t match wait in the Email inbox. Nothing in the mailbox is changed or deleted.'),
           const SizedBox(height: 12),
@@ -386,7 +386,7 @@ class _MailSettingsScreenState extends State<MailSettingsScreen> {
               'Gmail needs an app password, not the normal password:\n'
               '1. Sign in to the shared Gmail account and open myaccount.google.com → Security.\n'
               '2. Turn on 2-Step Verification if it is off.\n'
-              '3. Open "App passwords" (search for it at the top), create one named "Cabinet CRM" and copy the 16 letters here.\n'
+              '3. Open "App passwords" (search for it at the top), create one named "Casework" and copy the 16 letters here.\n'
               'Google Workspace: the admin may need to allow IMAP and app passwords for the account.',
               serious: false),
           SwitchListTile(

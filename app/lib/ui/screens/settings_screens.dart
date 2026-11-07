@@ -254,7 +254,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('About Cabinet CRM'),
+            title: const Text('About Casework'),
             subtitle: Text([
               svc.isHub ? 'This PC is the main office PC (master copy).' : 'This device syncs with ${svc.client?.hubName ?? 'the office PC'}.',
               'Signed in as ${svc.user?.s('name') ?? '-'} (${svc.role}).',
@@ -287,7 +287,7 @@ Future<void> _changeMode(BuildContext context, bool isHub) async {
     barrierDismissible: false,
     builder: (c) => const AlertDialog(
       title: Text('Restart needed'),
-      content: Text('Close Cabinet CRM and open it again to finish the change.'),
+      content: Text('Close Casework and open it again to finish the change.'),
     ),
   );
 }

@@ -1,10 +1,10 @@
 /// Optional helper: ZPDF (the PDF-Manager toolkit, `pdfm`) for stronger PDF work.
 ///
-/// When it is installed on a computer, Cabinet CRM uses it to merge the original
+/// When it is installed on a computer, Casework uses it to merge the original
 /// drawing and measurement PDFs into job packets (crisp vector pages instead of
 /// pictures), add bookmarks and page numbers across the whole packet, and to
 /// open PDFs in ZPDF's reader for annotating and signing. Without it, everything
-/// still works with Cabinet CRM's built-in PDF code.
+/// still works with Casework's built-in PDF code.
 library;
 
 import 'dart:convert';

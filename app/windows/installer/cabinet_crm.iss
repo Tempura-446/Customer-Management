@@ -1,4 +1,4 @@
-; Inno Setup script for the Cabinet CRM Windows installer.
+; Inno Setup script for the Casework Windows installer.
 ;
 ; Built by CI (.github/workflows/build.yml). To build by hand on Windows:
 ;   flutter build windows --release
@@ -7,7 +7,7 @@
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.0 windows\installer\cabinet_crm.iss
 ;
 ; What it does:
-;   - installs to C:\Program Files\Cabinet CRM, with Start menu (and optional desktop) shortcuts
+;   - installs to C:\Program Files\Casework, with Start menu (and optional desktop) shortcuts
 ;   - allows the Wi-Fi sync service through Windows Firewall on PRIVATE networks only,
 ;     so phones can connect without the firewall pop-up
 ;   - upgrades in place (same AppId); closes the running app first
@@ -16,7 +16,7 @@
 #ifndef AppVersion
   #define AppVersion "1.0.0"
 #endif
-#define AppName "Cabinet CRM"
+#define AppName "Casework"
 #define AppExe "cabinet_crm.exe"
 #define BuildDir "..\..\build\windows\x64\runner\Release"
 
@@ -33,7 +33,7 @@ UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
 SetupIconFile=..\runner\resources\app_icon.ico
 OutputDir=..\..\build\installer
-OutputBaseFilename=CabinetCRM-Setup-{#AppVersion}
+OutputBaseFilename=Casework-Setup-{#AppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -52,7 +52,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
-Name: "startup"; Description: "Start Cabinet CRM when Windows starts (recommended on the main office PC, so workstations and phones can always sync)"; GroupDescription: "Main office PC:"; Flags: unchecked
+Name: "startup"; Description: "Start Casework when Windows starts (recommended on the main office PC, so workstations and phones can always sync)"; GroupDescription: "Main office PC:"; Flags: unchecked
 
 [Files]
 Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -65,6 +65,7 @@ Name: "{commonstartup}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: startup
 
 [Run]
 ; Replace any old rule, then allow inbound sync connections on private (home/work) networks only.
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Cabinet CRM"""; Flags: runhidden; StatusMsg: "Configuring Windows Firewall..."
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""{#AppName}"""; Flags: runhidden; StatusMsg: "Configuring Windows Firewall..."
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#AppName}"" dir=in action=allow program=""{app}\{#AppExe}"" enable=yes profile=private"; Flags: runhidden; StatusMsg: "Configuring Windows Firewall..."
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent

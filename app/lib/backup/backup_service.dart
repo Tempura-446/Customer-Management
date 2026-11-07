@@ -186,12 +186,12 @@ class BackupService extends ChangeNotifier {
       final check = sqlite3.open(snapshotPath, mode: OpenMode.readOnly);
       try {
         final t = check.select("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'");
-        if (t.isEmpty) throw StateError('not a Cabinet CRM database');
+        if (t.isEmpty) throw StateError('not a Casework database');
       } finally {
         check.close();
       }
     } catch (e) {
-      throw StateError("That file isn't a Cabinet CRM backup ($e).");
+      throw StateError("That file isn't a Casework backup ($e).");
     }
     final pending = File(_pendingPath(files.root));
     await pending.parent.create(recursive: true);
@@ -263,18 +263,18 @@ class BackupService extends ChangeNotifier {
     super.dispose();
   }
 
-  static const _readme = '''Cabinet CRM backup
+  static const _readme = '''Casework backup
 ==================
 
 db\\     Database snapshots (customers, jobs, measurements, quotes, notes...). One per day, newest kept.
 files\\  Copy of the job folders (Projects) and the Email inbox attachments.
 
 To restore on the main office PC:
-1. Cabinet CRM > Settings > Backups > choose a snapshot > "Restore this".
-2. Close and reopen Cabinet CRM. The current database is kept as cabinet_crm.before-restore-....db.
+1. Casework > Settings > Backups > choose a snapshot > "Restore this".
+2. Close and reopen Casework. The current database is kept as cabinet_crm.before-restore-....db.
 3. If job files are missing, use "Restore missing files from backup".
 
-Moving to a new PC: install Cabinet CRM, choose "Main office PC", point Backups at this folder,
+Moving to a new PC: install Casework, choose "Main office PC", point Backups at this folder,
 restore the newest snapshot and then "Restore missing files from backup".
 ''';
 }

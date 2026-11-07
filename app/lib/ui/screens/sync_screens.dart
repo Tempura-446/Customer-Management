@@ -71,8 +71,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
         content: SizedBox(
           width: 380,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Phone: open Cabinet CRM → "Scan QR code on the PC".\n'
-                'Workstation: open Cabinet CRM → "Find the main office PC", then type the code below.'),
+            const Text('Phone: open Casework → "Scan QR code on the PC".\n'
+                'Workstation: open Casework → "Find the main office PC", then type the code below.'),
             const SizedBox(height: 12),
             Container(
               decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
@@ -129,7 +129,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 const SizedBox(height: 8),
                 const Muted(
                     'Workstations and phones sync when they are on the same network as this PC and this app is open (it can sit at the sign-in screen). '
-                    'The installer allows Cabinet CRM through Windows Firewall on private networks. '
+                    'The installer allows Casework through Windows Firewall on private networks. '
                     'If phones can\'t connect, check the PC\'s Wi-Fi is set to "Private" in Windows network settings.',
                     size: 12),
               ]),
@@ -293,7 +293,7 @@ class _PhonePairScreenState extends State<PhonePairScreen> {
     try {
       payload = jsonDecode(raw) as Map<String, dynamic>;
     } catch (_) {
-      toast(context, 'That QR code is not from the Cabinet CRM PC app.', error: true);
+      toast(context, 'That QR code is not from the Casework PC app.', error: true);
       return;
     }
     await _pair(payload);
@@ -376,10 +376,10 @@ class _PhonePairScreenState extends State<PhonePairScreen> {
                     textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 8),
                 Muted(Services.desktop
-                    ? '1. On the main office PC open Cabinet CRM → Devices → "Add a phone or computer" and pick your name.\n'
+                    ? '1. On the main office PC open Casework → Devices → "Add a phone or computer" and pick your name.\n'
                         '2. Here, click "Find the main office PC" (or type its address).\n'
                         '3. Type the pairing code shown on the main PC.'
-                    : '1. On the PC open Cabinet CRM → Devices → "Add a phone or computer" and pick your name.\n'
+                    : '1. On the PC open Casework → Devices → "Add a phone or computer" and pick your name.\n'
                         '2. Make sure this phone is on the same Wi-Fi as the PC.\n'
                         '3. Scan the QR code shown on the PC.'),
                 const SizedBox(height: 20),
@@ -406,7 +406,7 @@ class _PhonePairScreenState extends State<PhonePairScreen> {
                   if (_found != null) ...[
                     const SizedBox(height: 8),
                     if (_found!.isEmpty)
-                      const Muted('No main office PC found. Check that Cabinet CRM is open on it and that both '
+                      const Muted('No main office PC found. Check that Casework is open on it and that both '
                           'computers are on the same network, or type its address below.'),
                     for (final h in _found!)
                       Card(
@@ -517,7 +517,7 @@ class _ManualPairDialogState extends State<_ManualPairDialog> {
     } on TimeoutException {
       setState(() => _error = 'No answer from $host:$port. Same Wi-Fi? PC app open?');
     } catch (_) {
-      setState(() => _error = "Couldn't reach Cabinet CRM at $host:$port");
+      setState(() => _error = "Couldn't reach Casework at $host:$port");
     } finally {
       if (mounted) setState(() => _busy = false);
     }
