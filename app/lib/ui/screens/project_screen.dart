@@ -6,6 +6,7 @@ import '../../core/logic.dart';
 import '../../qb/qb_sync.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
+import 'history_screen.dart';
 import '../widgets/files_panel.dart';
 import 'calendar_screens.dart';
 import 'customers_screens.dart';
@@ -78,6 +79,7 @@ class ProjectScreen extends StatelessWidget {
             _Stepper(status: normalizeStage(p.s('status')), projectId: projectId),
             for (final w in projectWarnings(db, projectId, prices: prices)) WarnBanner(w.message, serious: w.serious),
             if (prices) _ApprovalLine(p: p),
+            JobPeopleLine(projectId: projectId),
             const SizedBox(height: 4),
             LayoutBuilder(builder: (context, c) {
               final cards = [

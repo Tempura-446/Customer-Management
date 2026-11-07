@@ -286,6 +286,19 @@ shows **"Edited on this computer – Save changes"** in the app. Click it and th
 next sync. The same button appears on the main PC when a file there is edited in place. Until you save, other
 computers keep the previous version. For a real design change, prefer a new design version (v2, v3…) so the history stays.
 
+**Who worked on what.** Several people can work on the same job; Casework keeps track:
+
+- **History:** every change to a job's records is logged with who made it and what changed, for example
+  "Sam changed measurements "Kitchen": ceiling height 96 → 97". It works the same on the main PC, shared computers
+  and phones, and syncs everywhere. Quick edits by one person to the same thing within 15 minutes show as one line.
+- **On the job page:** a line lists everyone who worked on the job and how many changes each made. Click a name, or
+  **History**, to see what they did, day by day.
+- **A note when someone joins:** the first time a second person changes something on a job, the notes say
+  "Sam also worked on this job (with Alex)".
+- **On each record:** measurements, designs, quotes, invoices and supplier orders show "Last changed by Sam, Nov 7,
+  9:02 AM".
+- **Prices:** history lines about quotes, invoices and payments are hidden from field staff.
+
 **Drag and drop.** On a computer, drag PDFs (or .kit files and renders) from 2020 or Explorer straight onto a job:
 
 - **Designs (2020) card:** asks whether it is a new version or more files for the latest one, and files it there.

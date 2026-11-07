@@ -37,6 +37,7 @@ bool tableAllowed(String table, String role, {required bool write}) {
 bool rowVisible(String table, Map<String, Object?> row, String role) {
   if (role != 'field') return true;
   if (table == 'notes' && row['kind'] == 'money') return false;
+  if (table == 'activity' && row['priced'] == 1) return false;
   if (table == 'files' && (row['category'] == 'quotes' || row['category'] == 'invoices')) return false;
   return true;
 }
@@ -377,7 +378,7 @@ class HubServer {
       }
     }
     final deletedMeanwhile = theirs['deleted'] == 1 && base['deleted'] != 1 && mine['deleted'] != 1 && mineChanged.isNotEmpty;
-    if (clashes.isNotEmpty || deletedMeanwhile) {
+    if ((clashes.isNotEmpty || deletedMeanwhile) && table != 'activity') {
       _recordConflict(table, theirs, mine,
           clashes: clashes, mineWon: mineNewer, deletedMeanwhile: deletedMeanwhile, byUser: byUser);
     }

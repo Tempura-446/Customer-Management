@@ -6,6 +6,7 @@ import '../../core/orders.dart';
 import '../../pdf/documents.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
+import 'history_screen.dart';
 
 String _poChipStatus(String s) => switch (s) {
       'draft' => 'draft',
@@ -236,6 +237,7 @@ class _PurchaseOrderScreenState extends State<PurchaseOrderScreen> {
           ),
           body: PageBody(maxWidth: 1000, children: [
             Crumbs('${p.s('customer')} › ${numberOf(p)} · ${p.s('title')}'),
+            ChangedByLine(po),
             Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
               StatusChip(_poChipStatus(status), label: poStatusLabel(status).toLowerCase()),
               if (po.ns('ordered_on') != null) Muted('Ordered ${po.s('ordered_on')}'),

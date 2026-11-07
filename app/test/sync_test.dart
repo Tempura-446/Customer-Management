@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:cabinet_crm/core/activity.dart';
 import 'package:cabinet_crm/core/db.dart';
 import 'package:cabinet_crm/core/device_mode.dart';
 import 'package:cabinet_crm/core/files.dart';
@@ -108,6 +109,21 @@ void main() {
     expect(ws.db.get('quotes', q), isNull, reason: 'back to the installer: prices removed again');
   });
 
+  test('work history from a phone reaches the main PC under the right person', () async {
+    final cid = saveCustomer(hub, {'name': 'Jane'});
+    final pid = createProject(hub, customerId: cid, title: 'Kitchen');
+    final ph = await pairedPhone(installer, 'phone');
+    await ph.client.sync();
+    saveMeasurement(ph.db, projectId: pid, room: 'Pantry', source: 'onsite', lines: [MeasureLine('Depth', '24', 'in')]);
+    await ph.client.sync();
+    final who = jobWorkers(hub, pid).map((w) => w.name).toList();
+    expect(who, containsAll(['Owner', 'Ian Installer']));
+    expect(jobActivity(hub, pid, userId: installer).map((r) => r.s('label')),
+        containsAll(['measurements "Pantry"', 'the job']), reason: 'the measurements, and the job moving to Measured');
+    expect(hub.one("SELECT body FROM notes WHERE project_id=? AND body LIKE '%also worked%'", [pid])!.s('body'),
+        'Ian Installer also worked on this job (with Owner)');
+  });
+
   test('pairing codes are single use', () async {
     final code = server.createPairingCode(owner);
     final a = Phone(Directory('${tmp.path}/a'));
@@ -211,7 +227,7 @@ void main() {
       final c = db.get('customers', cid)!;
       expect((c.s('phone'), c.s('email')), ('222', 'new@x.com'));
     }
-    expect(hub.select("SELECT * FROM notes WHERE kind='conflict'"), isEmpty);
+    expect(hub.select("SELECT body FROM notes WHERE kind='conflict'").map((n) => n.s('body')).toList(), isEmpty);
     expect(ph.db.raw.select('SELECT * FROM bases'), isEmpty, reason: 'base versions are dropped once synced');
   });
 

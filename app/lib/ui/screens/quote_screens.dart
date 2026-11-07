@@ -5,6 +5,7 @@ import '../../core/logic.dart';
 import '../../pdf/documents.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
+import 'history_screen.dart';
 import '../widgets/files_panel.dart';
 import 'design_screens.dart';
 import 'invoice_screens.dart';
@@ -545,6 +546,7 @@ class QuoteScreen extends StatelessWidget {
               onTap: () => push(context, ProjectScreen(projectId: p.id)),
               child: Crumbs('${p.s('customer')} › ${numberOf(p)} ${p.s('title')}'),
             ),
+            ChangedByLine(q),
             Row(children: [
               Text(quoteLabel(q), style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(width: 10),

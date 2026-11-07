@@ -4,6 +4,7 @@ import '../../core/checklist.dart';
 import '../../core/logic.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
+import 'history_screen.dart';
 import '../widgets/files_panel.dart';
 import 'design_screens.dart';
 import 'project_screen.dart';
@@ -301,6 +302,7 @@ class MeasurementScreen extends StatelessWidget {
               onTap: () => push(context, ProjectScreen(projectId: p.id)),
               child: Crumbs('${p.s('customer')} › ${numberOf(p)} · ${p.s('title')}'),
             ),
+            ChangedByLine(m),
             Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
               SourceChip(m.s('source'), verified: m.b('verified'), verifiedOn: m.ns('verified_on'), long: true),
               Text('${m.ns('taken_by') != null ? 'by ${m.s('taken_by')} · ' : ''}${m.ns('taken_on') ?? fmtDate(m.s('created_at'))}'),

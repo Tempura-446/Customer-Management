@@ -4,6 +4,7 @@ import '../../core/logic.dart';
 import '../../pdf/documents.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
+import 'history_screen.dart';
 import '../widgets/files_panel.dart';
 import 'project_screen.dart';
 import 'quote_screens.dart';
@@ -271,6 +272,7 @@ class InvoiceScreen extends StatelessWidget {
               onTap: () => push(context, ProjectScreen(projectId: p.id)),
               child: Crumbs('${p.s('customer')} › ${numberOf(p)} ${p.s('title')}'),
             ),
+            ChangedByLine(i),
             Row(children: [
               Flexible(child: Text(numberOf(i), style: Theme.of(context).textTheme.headlineSmall)),
               const SizedBox(width: 10),

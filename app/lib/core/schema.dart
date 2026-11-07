@@ -184,6 +184,14 @@ const syncTables = <String, String>{
     name TEXT NOT NULL,
     size INTEGER, sha256 TEXT NOT NULL, mime TEXT,
     room TEXT                               -- photos: which room (Kitchen, Pantry…), for grouping''',
+  // Work history: who changed what on a job (see core/activity.dart). updated_by = who.
+  'activity': '''
+    project_id TEXT, customer_id TEXT,
+    tbl TEXT NOT NULL, record_id TEXT NOT NULL,
+    action TEXT NOT NULL,                   -- added | changed | deleted | restored
+    label TEXT,                             -- e.g. measurements "Kitchen", design v2
+    details TEXT,                           -- e.g. ceiling height 96 → 97; notes
+    priced INTEGER NOT NULL DEFAULT 0       -- mentions prices: hidden from field staff''',
 };
 
 /// Tables a "field" user (installer / measurer) never receives or sends:
@@ -221,7 +229,7 @@ String createStatements() {
   });
   b.writeln('CREATE INDEX IF NOT EXISTS ix_projects_customer ON projects(customer_id);');
   for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files', 'selections',
-      'appointments', 'purchase_orders', 'qb_estimates', 'qb_invoices', 'qb_payments']) {
+      'appointments', 'purchase_orders', 'qb_estimates', 'qb_invoices', 'qb_payments', 'activity']) {
     b.writeln('CREATE INDEX IF NOT EXISTS ix_${t}_project ON $t(project_id);');
   }
   return b.toString();

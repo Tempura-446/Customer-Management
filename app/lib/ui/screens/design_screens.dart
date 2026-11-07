@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/logic.dart';
 import '../../services.dart';
 import '../widgets/common.dart';
+import 'history_screen.dart';
 import '../widgets/files_panel.dart';
 import 'measurement_screens.dart';
 import 'project_screen.dart';
@@ -178,6 +179,7 @@ class DesignScreen extends StatelessWidget {
               onTap: () => push(context, ProjectScreen(projectId: p.id)),
               child: Crumbs('${p.s('customer')} › ${numberOf(p)} · ${p.s('title')}'),
             ),
+            ChangedByLine(d),
             Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
               StatusChip(d.s('status')),
               Muted('Created ${fmtDate(d.s('created_at'))}'),

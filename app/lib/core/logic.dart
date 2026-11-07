@@ -10,6 +10,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
+import 'activity.dart';
 import 'approval.dart';
 import 'checklist.dart';
 import 'db.dart';
@@ -441,7 +442,7 @@ List<Rec> customersList(AppDb db, {String? query}) {
     ORDER BY c.name COLLATE NOCASE''', [q, q, q, q]);
 }
 
-void deleteProject(AppDb db, String id) => db.tx(() {
+void deleteProject(AppDb db, String id) => withoutActivity(() => db.tx(() {
       // Children of children first (lines, payments), then everything hanging off the job.
       const children = {
         'measurements': ('measurement_items', 'measurement_id'),
@@ -450,7 +451,7 @@ void deleteProject(AppDb db, String id) => db.tx(() {
         'purchase_orders': ('po_items', 'po_id'),
       };
       for (final t in ['measurements', 'designs', 'quotes', 'invoices', 'notes', 'files', 'selections',
-          'appointments', 'purchase_orders', 'qb_estimates', 'qb_invoices', 'qb_payments']) {
+          'appointments', 'purchase_orders', 'qb_estimates', 'qb_invoices', 'qb_payments', 'activity']) {
         for (final r in db.select('SELECT id FROM $t WHERE project_id=? AND deleted=0', [id])) {
           final child = children[t];
           if (child != null) {
@@ -462,14 +463,14 @@ void deleteProject(AppDb db, String id) => db.tx(() {
         }
       }
       db.softDelete('projects', id);
-    });
+    }));
 
-void deleteCustomer(AppDb db, String id) => db.tx(() {
+void deleteCustomer(AppDb db, String id) => withoutActivity(() => db.tx(() {
       for (final p in db.select('SELECT id FROM projects WHERE customer_id=? AND deleted=0', [id])) {
         deleteProject(db, p.id);
       }
       db.softDelete('customers', id);
-    });
+    }));
 
 void addNote(AppDb db, String projectId, String body, {String kind = 'note'}) {
   if (body.trim().isEmpty) return;

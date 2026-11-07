@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:sqlite3/sqlite3.dart';
+
+import 'activity.dart';
 import 'package:uuid/uuid.dart';
 
 import 'schema.dart';
@@ -155,14 +157,19 @@ class AppDb extends ChangeNotifier {
     if (isHub) assignNumber(table, v);
     _write('INSERT INTO $table (${v.keys.join(',')}) VALUES (${List.filled(v.length, '?').join(',')})',
         v.values.toList());
+    if (currentUserId != null) recordActivity(this, table, v['id'] as String, null, v);
     return v['id'] as String;
   }
 
   void update(String table, String id, Map<String, Object?> values) {
     if (!isHub) _saveBase(table, id);
+    final old = currentUserId == null || quietActivity > 0
+        ? null
+        : raw.select('SELECT * FROM $table WHERE id=?', [id]).firstOrNull;
     final v = _stamp(Map<String, Object?>.from(values));
     _write('UPDATE $table SET ${v.keys.map((k) => '$k=?').join(',')} WHERE id=?',
         [...v.values, id]);
+    if (old != null) recordActivity(this, table, id, Map<String, Object?>.from(old), v);
   }
 
   void softDelete(String table, String id) => update(table, id, {'deleted': 1});
