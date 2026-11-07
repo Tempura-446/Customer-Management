@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.cabinetcrm.cabinet_crm"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = maxOf(37, flutter.compileSdkVersion) // androidx.core 1.19 (notifications plugin) needs 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
