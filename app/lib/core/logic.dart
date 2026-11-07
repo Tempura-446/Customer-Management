@@ -921,6 +921,10 @@ List<Warning> projectWarnings(AppDb db, String projectId, {bool prices = true}) 
     w.add(Warning(designs.isNotEmpty || acc != null,
         '${m.s('room')}: ${missing.length} checklist item(s) not measured: $shown${missing.length > 4 ? ' and ${missing.length - 4} more' : ''}.'));
   }
+  for (final n in db.select("SELECT body FROM notes WHERE project_id=? AND deleted=0 AND kind='conflict' ORDER BY created_at",
+      [projectId])) {
+    w.add(Warning(true, '${n.s('body')} Check it, then mark it checked under Notes.'));
+  }
   if (designs.isNotEmpty && meas.isEmpty) w.add(Warning(true, 'Design exists with no measurements on file.'));
   for (final d in designs) {
     if (d.ns('measurement_id') == null && meas.isNotEmpty) {

@@ -177,6 +177,9 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS blobs (
   sha256 TEXT PRIMARY KEY, path TEXT NOT NULL, uploaded INTEGER NOT NULL DEFAULT 1,
   mtime INTEGER);  -- file time when stored; later = edited on this computer
+-- Devices only: the version of a row as last received from the main PC, saved when it is
+-- first edited here. Sent with the push so the main PC can merge two people's edits field by field.
+CREATE TABLE IF NOT EXISTS bases (tbl TEXT NOT NULL, id TEXT NOT NULL, row TEXT NOT NULL, PRIMARY KEY (tbl, id));
 -- Hub only: paired phones / tablets.
 CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT, token_hash TEXT NOT NULL,

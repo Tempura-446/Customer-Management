@@ -123,6 +123,13 @@ class SyncClient extends ChangeNotifier {
           final m = Map<String, Object?>.from(r)..remove('dirty');
           if (t == 'users') m.remove('pin_hash');
           pushedVersion['$t/${m['id']}'] = m['updated_at'] as String;
+          // The version this edit started from: lets the main PC keep other people's changes
+          // to fields we didn't touch. Older main PCs ignore it.
+          final base = db.baseOf(t, m['id'] as String);
+          if (base != null) {
+            if (t == 'users') base.remove('pin_hash');
+            m['_base'] = base;
+          }
           return m;
         }).toList();
         pushed += rows.length;
@@ -165,6 +172,7 @@ class SyncClient extends ChangeNotifier {
         }
         db.setMeta('cursor', '${res['cursor']}');
         if (res['user'] != null) _storeUser(res['user'] as Map<String, dynamic>);
+        db.pruneBases(syncTables.keys);
         db.raw.execute('COMMIT');
       } catch (_) {
         db.raw.execute('ROLLBACK');
@@ -197,6 +205,7 @@ class SyncClient extends ChangeNotifier {
         for (final t in syncTables.keys) {
           db.raw.execute('DELETE FROM $t WHERE dirty=0');
         }
+        db.pruneBases(syncTables.keys);
         db.setMeta('cursor', '0');
         db.raw.execute('COMMIT');
         syncing = false;

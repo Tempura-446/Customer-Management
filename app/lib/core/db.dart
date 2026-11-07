@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -156,12 +157,39 @@ class AppDb extends ChangeNotifier {
   }
 
   void update(String table, String id, Map<String, Object?> values) {
+    if (!isHub) _saveBase(table, id);
     final v = _stamp(Map<String, Object?>.from(values));
     _write('UPDATE $table SET ${v.keys.map((k) => '$k=?').join(',')} WHERE id=?',
         [...v.values, id]);
   }
 
   void softDelete(String table, String id) => update(table, id, {'deleted': 1});
+
+  /// Device: remember the synced version of a row before its first local edit.
+  void _saveBase(String table, String id) {
+    final r = raw.select('SELECT * FROM $table WHERE id=? AND dirty=0', [id]).firstOrNull;
+    if (r == null) return; // new here, or already edited since the last sync (base already saved)
+    final m = Map<String, Object?>.from(r)..remove('dirty');
+    raw.execute('INSERT OR IGNORE INTO bases(tbl, id, row) VALUES (?,?,?)', [table, id, jsonEncode(m)]);
+  }
+
+  /// Device: the saved base version of a row, if it has one.
+  Map<String, Object?>? baseOf(String table, String id) {
+    final r = raw.select('SELECT row FROM bases WHERE tbl=? AND id=?', [table, id]).firstOrNull;
+    if (r == null) return null;
+    try {
+      return Map<String, Object?>.from(jsonDecode(r['row'] as String) as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Device: forget base versions of rows that are no longer edited here.
+  void pruneBases(Iterable<String> tables) {
+    for (final t in tables) {
+      raw.execute('DELETE FROM bases WHERE tbl=? AND id NOT IN (SELECT id FROM $t WHERE dirty=1)', [t]);
+    }
+  }
 
   /// Run several writes as one unit; listeners are notified once at the end.
   T tx<T>(T Function() body) {

@@ -186,7 +186,7 @@ class HubServer {
     final body = jsonDecode(await req.readAsString()) as Map<String, dynamic>;
     final since = (body['since'] as num?)?.toInt() ?? 0;
     final changes = (body['changes'] as Map<String, dynamic>?) ?? {};
-    final result = mergePush(changes, role: role);
+    final result = mergePush(changes, role: role, byUser: a.user.id);
     final out = pullSince(since, role: role);
     // Rejected rows: send back the hub version even if its seq is old (only what this role may see).
     for (final MapEntry(key: t, value: ids) in result.rejected.entries) {
@@ -232,7 +232,7 @@ class HubServer {
 
   /// Apply rows pushed by a device. Public so tests (and a future cloud relay) can reuse it.
   ({int accepted, Map<String, List<String>> rejected, Map<String, List<String>> acceptedIds,
-      Map<String, List<String>> skippedIds}) mergePush(Map<String, dynamic> changes, {required String role}) {
+      Map<String, List<String>> skippedIds}) mergePush(Map<String, dynamic> changes, {required String role, String? byUser}) {
     var accepted = 0;
     final rejected = <String, List<String>>{};
     final acceptedIds = <String, List<String>>{};
@@ -250,7 +250,8 @@ class HubServer {
         }
         for (final raw in rows) {
           if (raw is! Map) continue;
-          final row = Map<String, Object?>.from(raw);
+          var row = Map<String, Object?>.from(raw);
+          final base = row.remove('_base');
           final why = _reject(table, row);
           if (why != null) {
             if (row['id'] is String) (skippedIds[table] ??= []).add(row['id'] as String);
@@ -262,7 +263,18 @@ class HubServer {
             continue;
           }
           final existing = db.raw.select('SELECT * FROM $table WHERE id=?', [id]).firstOrNull;
-          if (existing != null && (existing['updated_at'] as String).compareTo(row['updated_at'] as String) >= 0) {
+          // Someone else changed this row after the device last synced it: merge field by field
+          // instead of letting one whole version win.
+          if (existing != null && base is Map && table != 'settings' && base['updated_at'] != existing['updated_at']) {
+            final merged = _mergeEdits(table, Map<String, Object?>.from(base), Map<String, Object?>.from(existing), row,
+                byUser: byUser ?? row['updated_by'] as String?);
+            if (merged == null) {
+              (rejected[table] ??= []).add(id); // nothing of the device's left to apply: send it the current version
+              continue;
+            }
+            row = merged;
+          } else if (existing != null &&
+              (existing['updated_at'] as String).compareTo(row['updated_at'] as String) >= 0) {
             (rejected[table] ??= []).add(id);
             continue;
           }
@@ -308,6 +320,99 @@ class HubServer {
       } catch (_) {}
     }
     return (accepted: accepted, rejected: rejected, acceptedIds: acceptedIds, skippedIds: skippedIds);
+  }
+
+  static const _bookkeeping = {'id', 'created_at', 'updated_at', 'updated_by', 'seq', 'dirty', 'number'};
+
+  /// Three-way merge of a device's edit ([mine], started from [base]) with the current
+  /// version ([theirs]). Fields only one side changed keep that change; a field both changed
+  /// differently goes to the newer edit and is recorded as a conflict on the job.
+  /// Returns the merged row, or null when the device changed nothing that is still different.
+  Map<String, Object?>? _mergeEdits(String table, Map<String, Object?> base, Map<String, Object?> theirs,
+      Map<String, Object?> mine, {String? byUser}) {
+    bool same(Object? a, Object? b) => '${a ?? ''}' == '${b ?? ''}';
+    final cols = theirs.keys.where((c) => !_bookkeeping.contains(c)).toList();
+    final mineChanged = [for (final c in cols) if (mine.containsKey(c) && !same(mine[c], base[c])) c];
+    final theirsChanged = {for (final c in cols) if (!same(theirs[c], base[c])) c};
+    final mineNewer = (mine['updated_at'] as String).compareTo(theirs['updated_at'] as String) > 0;
+    final clashes = [for (final c in mineChanged) if (theirsChanged.contains(c) && !same(mine[c], theirs[c])) c];
+    final merged = Map<String, Object?>.from(theirs);
+    var changed = false;
+    for (final c in mineChanged) {
+      if (clashes.contains(c) && !mineNewer) continue;
+      if (!same(merged[c], mine[c])) {
+        merged[c] = mine[c];
+        changed = true;
+      }
+    }
+    final deletedMeanwhile = theirs['deleted'] == 1 && base['deleted'] != 1 && mine['deleted'] != 1 && mineChanged.isNotEmpty;
+    if (clashes.isNotEmpty || deletedMeanwhile) {
+      _recordConflict(table, theirs, mine,
+          clashes: clashes, mineWon: mineNewer, deletedMeanwhile: deletedMeanwhile, byUser: byUser);
+    }
+    if (!changed) return null;
+    // Newer than both versions, so every device takes the merged one.
+    var ts = db.now();
+    for (final t in [theirs['updated_at'], mine['updated_at']]) {
+      if (t is String && t.compareTo(ts) >= 0) {
+        ts = DateTime.parse(t).add(const Duration(microseconds: 1)).toUtc().toIso8601String();
+      }
+    }
+    merged['updated_at'] = ts;
+    merged['updated_by'] = mine['updated_by'] ?? byUser;
+    return merged;
+  }
+
+  static const _what = {
+    'customers': 'the customer', 'projects': 'the job', 'measurements': 'measurements', 'measurement_items': 'a dimension',
+    'selections': 'a selection', 'designs': 'a design', 'quotes': 'a quote', 'quote_items': 'a quote line',
+    'invoices': 'an invoice', 'payments': 'a payment', 'notes': 'a note', 'appointments': 'an appointment',
+    'suppliers': 'a supplier', 'purchase_orders': 'a purchase order', 'po_items': 'an order line', 'files': 'a file',
+  };
+
+  String? _projectOf(String table, Map<String, Object?> row) {
+    if (table == 'projects') return row['id'] as String?;
+    if (row['project_id'] is String) return row['project_id'] as String;
+    String? via(String parent, String fk) =>
+        db.raw.select('SELECT project_id FROM $parent WHERE id=?', [row[fk]]).firstOrNull?['project_id'] as String?;
+    return switch (table) {
+      'measurement_items' => via('measurements', 'measurement_id'),
+      'quote_items' => via('quotes', 'quote_id'),
+      'po_items' => via('purchase_orders', 'po_id'),
+      'payments' => via('invoices', 'invoice_id'),
+      _ => null,
+    };
+  }
+
+  void _recordConflict(String table, Map<String, Object?> theirs, Map<String, Object?> mine,
+      {required List<String> clashes, required bool mineWon, required bool deletedMeanwhile, String? byUser}) {
+    String who(Object? uid) => (uid is String ? db.get('users', uid)?.ns('name') : null) ?? 'someone';
+    final me = who(byUser ?? mine['updated_by']), them = who(theirs['updated_by']);
+    final label = [
+      _what[table] ?? table,
+      for (final k in const ['room', 'title', 'name', 'label', 'item', 'description', 'number'])
+        if ((theirs[k] ?? '').toString().trim().isNotEmpty) '"${theirs[k]}"',
+    ].take(2).join(' ');
+    final priced = pricedTables.contains(table);
+    String field(String c) => c.replaceAll('_', ' ');
+    final String body;
+    if (deletedMeanwhile) {
+      body = 'Edit conflict: $them deleted $label while $me was changing it. It stays deleted: '
+          "restore it by hand if $me's changes are needed.";
+    } else {
+      final winner = mineWon ? mine : theirs;
+      final details = clashes.map((c) => priced ? field(c) : '${field(c)}: "${winner[c] ?? ''}"').join(', ');
+      body = 'Edit conflict: $me and $them changed $label at the same time. '
+          "Kept ${mineWon ? me : them}'s ${clashes.length == 1 ? 'value' : 'values'} ($details). "
+          "${mineWon ? them : me}'s other changes were kept.";
+    }
+    final pid = _projectOf(table, theirs);
+    db.insert('notes', {
+      'project_id': pid,
+      'customer_id': pid == null && table == 'customers' ? theirs['id'] : null,
+      'kind': 'conflict',
+      'body': body,
+    });
   }
 
   Map<String, List<Map<String, Object?>>> pullSince(int since, {required String role}) {

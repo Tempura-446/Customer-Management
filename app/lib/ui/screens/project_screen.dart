@@ -422,6 +422,7 @@ class _NotesCardState extends State<_NotesCard> {
   static const _icons = {
     'note': Icons.sticky_note_2_outlined, 'call': Icons.phone_outlined, 'email': Icons.email_outlined,
     'site': Icons.home_repair_service_outlined, 'system': Icons.history, 'money': Icons.attach_money,
+    'conflict': Icons.call_split,
   };
 
   @override
@@ -486,6 +487,11 @@ class _NotesCardState extends State<_NotesCard> {
                         : null),
                 subtitle: Text('${fmtDateTime(n.s('created_at'))}${n.ns('who') != null ? ' · ${n.s('who')}' : ''}',
                     style: const TextStyle(fontSize: 11)),
+                trailing: n.s('kind') == 'conflict'
+                    ? TextButton(
+                        onPressed: () => db.update('notes', n.id, {'kind': 'system', 'body': '${n.s('body')} (checked)'}),
+                        child: const Text('Mark checked'))
+                    : null,
               ),
           ]),
         ),

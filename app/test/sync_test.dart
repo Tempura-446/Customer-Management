@@ -140,6 +140,79 @@ void main() {
     expect(hub.get('customers', cid)!.s('phone'), 'pc-edit-later');
   });
 
+  test('concurrent edits to different fields are both kept, with no conflict', () async {
+    final cid = saveCustomer(hub, {'name': 'Jane', 'phone': '111', 'email': 'old@x.com'});
+    final ph = await pairedPhone(owner, 'p');
+    await ph.client.sync();
+    ph.db.update('customers', cid, {'phone': '222'});
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    hub.update('customers', cid, {'email': 'new@x.com'});
+    await ph.client.sync();
+    for (final db in [hub, ph.db]) {
+      final c = db.get('customers', cid)!;
+      expect((c.s('phone'), c.s('email')), ('222', 'new@x.com'));
+    }
+    expect(hub.select("SELECT * FROM notes WHERE kind='conflict'"), isEmpty);
+    expect(ph.db.raw.select('SELECT * FROM bases'), isEmpty, reason: 'base versions are dropped once synced');
+  });
+
+  test('same field changed on two phones: newer kept, conflict noted on the job until checked', () async {
+    final cid = saveCustomer(hub, {'name': 'Jane'});
+    final pid = createProject(hub, customerId: cid, title: 'Kitchen');
+    final mid = saveMeasurement(hub, projectId: pid, room: 'Kitchen', source: 'onsite', notes: 'start', lines: []);
+    final a = await pairedPhone(owner, 'a');
+    final b = await pairedPhone(installer, 'b');
+    await a.client.sync();
+    await b.client.sync();
+    a.db.update('measurements', mid, {'notes': 'from A', 'taken_by': 'Alex'});
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    b.db.update('measurements', mid, {'notes': 'from B'});
+    await a.client.sync();
+    await b.client.sync();
+    await a.client.sync();
+    for (final db in [hub, a.db, b.db]) {
+      final m = db.get('measurements', mid)!;
+      expect((m.s('notes'), m.s('taken_by')), ('from B', 'Alex'), reason: "B's newer note, A's other change kept");
+    }
+    final note = hub.one("SELECT * FROM notes WHERE kind='conflict'")!;
+    expect(note.s('project_id'), pid);
+    expect(note.s('body'), contains('Ian Installer and Owner changed measurements "Kitchen" at the same time'));
+    expect(note.s('body'), contains('notes: "from B"'));
+    expect(projectWarnings(hub, pid).any((w) => w.message.startsWith('Edit conflict')), isTrue);
+    hub.update('notes', note.id, {'kind': 'system'});
+    expect(projectWarnings(hub, pid).any((w) => w.message.startsWith('Edit conflict')), isFalse);
+  });
+
+  test('edited on a phone while deleted on the PC: stays deleted, noted', () async {
+    final cid = saveCustomer(hub, {'name': 'Jane'});
+    final pid = createProject(hub, customerId: cid, title: 'Kitchen');
+    final mid = saveMeasurement(hub, projectId: pid, room: 'Pantry', source: 'onsite', lines: []);
+    final ph = await pairedPhone(owner, 'p');
+    await ph.client.sync();
+    ph.db.update('measurements', mid, {'notes': 'phone edit'});
+    hub.softDelete('measurements', mid);
+    await ph.client.sync();
+    expect(hub.get('measurements', mid), isNull);
+    expect(ph.db.get('measurements', mid), isNull);
+    expect(hub.one("SELECT body FROM notes WHERE kind='conflict'")!.s('body'), contains('It stays deleted'));
+  });
+
+  test("a phone that only touched a job doesn't undo the PC's edit", () async {
+    final cid = saveCustomer(hub, {'name': 'Jane'});
+    final pid = createProject(hub, customerId: cid, title: 'Kitchen');
+    final ph = await pairedPhone(owner, 'p');
+    await ph.client.sync();
+    ph.db.update('projects', pid, {}); // e.g. adding a note bumps the job
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    hub.update('projects', pid, {'title': 'Kitchen + pantry'});
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    ph.db.update('projects', pid, {}); // the phone's version is now the newest
+    await ph.client.sync();
+    expect(hub.get('projects', pid)!.s('title'), 'Kitchen + pantry');
+    expect(ph.db.get('projects', pid)!.s('title'), 'Kitchen + pantry');
+    expect(ph.client.pendingChanges(), 0);
+  });
+
   test('two phones see each other\'s changes through the hub', () async {
     final a = await pairedPhone(owner, 'a');
     final b = await pairedPhone(owner, 'b');
