@@ -264,6 +264,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         Card(
           margin: const EdgeInsets.only(bottom: 12),
+          child: StatefulBuilder(
+            builder: (context, setLocal) => SwitchListTile(
+              secondary: const Icon(Icons.notifications_outlined),
+              title: const Text('Reminders on this device'),
+              subtitle: Text(Services.desktop
+                  ? 'Your appointments the evening before and an hour before, plus a morning summary at 7:30 '
+                      'while Casework is open.'
+                  : 'Your appointments the evening before (5 PM) and an hour before, even when the app is closed.'),
+              value: svc.reminders.enabled,
+              onChanged: (v) async {
+                await svc.reminders.setEnabled(v);
+                setLocal(() {});
+              },
+            ),
+          ),
+        ),
+        Card(
+          margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('About Casework'),

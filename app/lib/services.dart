@@ -10,6 +10,7 @@ import 'core/files.dart';
 import 'core/logic.dart';
 import 'backup/backup_service.dart';
 import 'mail/mail_poller.dart';
+import 'notify/reminder_service.dart';
 import 'pdf/zpdf.dart';
 import 'qb/qb_sync.dart';
 import 'qb/qbwc_server.dart';
@@ -47,6 +48,9 @@ class Services extends ChangeNotifier {
 
   /// True for an office workstation (a desktop that connects to the main PC).
   bool get isWorkstation => !isHub && desktop;
+
+  /// Appointment reminders and the morning summary as system notifications.
+  late final ReminderService reminders = ReminderService(this);
 
   /// Main office PC only: QuickBooks Web Connector service.
   QbwcService? qbwc;
@@ -91,6 +95,7 @@ class Services extends ChangeNotifier {
       s.mail!.start();
       s.backup!.start();
       s.detectZpdf();
+      s.reminders.start();
       return s;
     }
     final client = SyncClient(db, files, discovery: discoverHub);
@@ -98,6 +103,7 @@ class Services extends ChangeNotifier {
     s.detectZpdf();
     final uid = client.userId;
     if (uid != null) s.signIn(uid);
+    s.reminders.start();
     return s;
   }
 
