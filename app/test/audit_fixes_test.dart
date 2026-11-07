@@ -57,7 +57,9 @@ void main() {
         body: jsonEncode({'since': 0, 'changes': {'quotes': [{'id': q, 'updated_at': '0'}]}}));
     final rows = (jsonDecode(res.body) as Map)['rows'] as Map;
     expect(rows.containsKey('quotes'), isFalse);
-    expect(res.body, isNot(contains('9000')));
+    // Look for the price as a JSON value: a timestamp like 05:07:30.900026Z contains "9000" too.
+    expect(res.body, isNot(matches(RegExp(r'[:\[,]\s*9000(\.0+)?\s*[,}\]]'))));
+    expect(rows.containsKey('quote_items'), isFalse);
   });
 
   test('files rows with a bad category or sha are not written (no path traversal)', () async {
