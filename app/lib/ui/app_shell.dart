@@ -11,6 +11,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/login_screens.dart';
 import 'screens/mail_screens.dart';
 import 'screens/projects_screens.dart';
+import 'screens/reports_screen.dart';
 import 'screens/settings_screens.dart';
 import 'screens/sync_screens.dart';
 import 'widgets/common.dart';
@@ -116,6 +117,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       (Icons.work_outline, 'Jobs', const ProjectsScreen()),
       (Icons.calendar_month_outlined, 'Calendar', const CalendarScreen()),
       (Icons.people_outline, 'Customers', const CustomersScreen()),
+      if (wide && svc.prices) (Icons.insights_outlined, 'Reports', const ReportsScreen()),
       if (wide) (svc.isHub ? Icons.devices_other : Icons.sync, syncLabel, syncPage),
       if (wide) (Icons.settings_outlined, 'Settings', const SettingsScreen()),
       if (!wide) (Icons.more_horiz, 'More', _MorePage(syncLabel: syncLabel, syncPage: syncPage)),
@@ -208,6 +210,7 @@ class _MorePage extends StatelessWidget {
         ]),
         const SizedBox(height: 16),
         if (svc.prices) tile(Icons.mail_outline, 'Email inbox', 'Measurement emails waiting to be filed', const MailInboxScreen()),
+        if (svc.prices) tile(Icons.insights_outlined, 'Reports', 'Quotes won, time to quote, money collected', const ReportsScreen()),
         tile(Icons.sync, syncLabel, svc.isHub ? 'Connected workstations and phones' : 'Sync with the main office PC', syncPage),
         tile(Icons.settings_outlined, 'Settings', 'Business details, staff and more', const SettingsScreen()),
         if (svc.isHub)
