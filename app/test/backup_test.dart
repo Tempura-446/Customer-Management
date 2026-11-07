@@ -110,4 +110,41 @@ void main() {
     expect(other.overdue, isTrue);
     expect(other.snapshots(), isEmpty);
   });
+
+  test('verify: a good backup passes and is recorded', () async {
+    await b.runBackup();
+    final r = await b.verifyLatest();
+    expect(r, contains('1 job, 1 customer, all job files present'));
+    expect(b.lastVerified, isNotNull);
+    expect(b.verifyError, isNull);
+  });
+
+  test('verify: a damaged copy is caught and reported', () async {
+    await b.runBackup();
+    final snap = b.snapshots().first;
+    final bytes = snap.readAsBytesSync();
+    // Overwrite the middle of the file: header intact, pages garbage.
+    for (var i = 4096; i < bytes.length && i < 4096 * 3; i++) {
+      bytes[i] = 0x5A;
+    }
+    snap.writeAsBytesSync(bytes);
+    await expectLater(b.verifyLatest(), throwsA(isA<StateError>()));
+    expect(b.verifyError, isNotNull);
+    expect(b.lastVerified, isNull);
+  });
+
+  test('verify: a job file missing from the backup folder is caught', () async {
+    await b.runBackup();
+    final mirrored = Directory(p.join(backupDir, BackupService.folderName, 'files', 'Projects'))
+        .listSync(recursive: true)
+        .whereType<File>()
+        .firstWhere((f) => p.basename(f.path) == 'plan.pdf');
+    mirrored.deleteSync();
+    await expectLater(
+        b.verifyLatest(), throwsA(isA<StateError>().having((e) => e.message, 'message', contains('plan.pdf'))));
+    // The next backup copies it again and a new check clears the warning.
+    await b.runBackup();
+    await b.verifyLatest();
+    expect(b.verifyError, isNull);
+  });
 }

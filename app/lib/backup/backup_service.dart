@@ -43,6 +43,18 @@ class BackupService extends ChangeNotifier {
   String? get lastError => db.meta('backup_last_error');
   String? get lastSummary => db.meta('backup_last_summary');
 
+  /// Last time the newest snapshot was test-opened successfully.
+  DateTime? get lastVerified => DateTime.tryParse(db.meta('backup_verified') ?? '');
+  String? get verifyError => db.meta('backup_verify_error');
+  String? get verifySummary => db.meta('backup_verify_summary');
+  bool verifying = false;
+
+  bool get _verifyDue {
+    if (!enabled || dir == null) return false;
+    final v = lastVerified;
+    return verifyError != null || v == null || DateTime.now().difference(v) > const Duration(days: 7);
+  }
+
   /// Not set up, or no successful backup in 3 days.
   bool get overdue {
     if (!enabled || dir == null) return true;
@@ -88,6 +100,89 @@ class BackupService extends ChangeNotifier {
         await runBackup();
       } catch (_) {/* recorded in backup_last_error */}
     }
+    // Weekly (and after a failed check, at the next chance): prove the newest copy can be restored.
+    if (_verifyDue && !running && !verifying && snapshots().isNotEmpty) {
+      try {
+        await verifyLatest();
+      } catch (_) {/* recorded in backup_verify_error */}
+    }
+  }
+
+  // ------------------------------------------------------------------ verify
+
+  /// Test-open the newest database copy the way a restore would, and check the job
+  /// files are all in the mirror. Records the result; throws with a readable reason.
+  Future<String> verifyLatest() async {
+    if (verifying) return 'A check is already running.';
+    verifying = true;
+    notifyListeners();
+    try {
+      final snaps = snapshots();
+      if (snaps.isEmpty) throw StateError('there is no backup to check yet');
+      final snap = snaps.first;
+      int jobs, customers;
+      final Database copy;
+      try {
+        copy = sqlite3.open(snap.path, mode: OpenMode.readOnly);
+      } catch (e) {
+        throw StateError("the newest copy (${p.basename(snap.path)}) can't be opened: $e");
+      }
+      try {
+        final check = copy.select('PRAGMA integrity_check').map((r) => '${r.values.first}').toList();
+        if (check.length != 1 || check.first != 'ok') {
+          throw StateError('the newest copy (${p.basename(snap.path)}) is damaged: ${check.take(3).join('; ')}');
+        }
+        jobs = copy.select('SELECT COUNT(*) c FROM projects WHERE deleted=0').first['c'] as int;
+        customers = copy.select('SELECT COUNT(*) c FROM customers WHERE deleted=0').first['c'] as int;
+      } on SqliteException catch (e) {
+        throw StateError("the newest copy (${p.basename(snap.path)}) isn't a complete Casework database: ${e.message}");
+      } finally {
+        copy.close();
+      }
+      final liveJobs = db.raw.select('SELECT COUNT(*) c FROM projects WHERE deleted=0').first['c'] as int;
+      if (liveJobs > 0 && jobs == 0) throw StateError('the newest copy has no jobs, but this PC has $liveJobs');
+
+      final missing = await missingFromMirror();
+      if (missing.isNotEmpty) {
+        throw StateError('${missing.length} job file(s) are not in the backup folder yet, e.g. ${missing.first}. '
+            'Run a backup; if it keeps happening, check the backup drive has space.');
+      }
+      final summary = '${p.basename(snap.path)} opens and is intact: $jobs job${jobs == 1 ? '' : 's'}, '
+          '$customers customer${customers == 1 ? '' : 's'}, all job files present';
+      db.setMeta('backup_verified', DateTime.now().toIso8601String());
+      db.setMeta('backup_verify_summary', summary);
+      db.raw.execute("DELETE FROM meta WHERE key='backup_verify_error'");
+      return summary;
+    } catch (e) {
+      final msg = e is StateError ? e.message : '$e';
+      db.setMeta('backup_verify_error', '${DateTime.now().toIso8601String().substring(0, 16)}: $msg');
+      throw StateError(msg);
+    } finally {
+      verifying = false;
+      notifyListeners();
+    }
+  }
+
+  /// Job files (relative paths) that are on this PC but not in the backup mirror, or differ in size.
+  /// Files changed since the last backup are not counted: the next backup copies them.
+  Future<List<String>> missingFromMirror() async {
+    final root = _root;
+    if (root == null) return const [];
+    final lastRun = last;
+    final out = <String>[];
+    for (final name in mirrored) {
+      final src = Directory(p.join(files.root, name));
+      if (!await src.exists()) continue;
+      await for (final e in src.list(recursive: true, followLinks: false)) {
+        if (e is! File) continue;
+        final rel = p.relative(e.path, from: src.path);
+        final s = await e.stat();
+        if (lastRun != null && s.modified.isAfter(lastRun)) continue;
+        final copy = File(p.join(root, 'files', name, rel));
+        if (!await copy.exists() || (await copy.stat()).size != s.size) out.add(p.join(name, rel));
+      }
+    }
+    return out;
   }
 
   // ------------------------------------------------------------------ backup

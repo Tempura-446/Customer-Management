@@ -75,6 +75,7 @@ class _BackupScreenState extends State<BackupScreen> {
               if (b.restorePending)
                 const WarnBanner('A restore is waiting. Close and reopen Casework to finish it.'),
               if (b.lastError != null) WarnBanner('Last backup failed: ${b.lastError}'),
+              if (b.verifyError != null) WarnBanner('Backup check failed: ${b.verifyError}'),
               Section(
                 title: 'Settings',
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -114,15 +115,34 @@ class _BackupScreenState extends State<BackupScreen> {
                   KeyValues([
                     ('Last backup', b.last == null ? 'never' : fmtDateTime(b.last!.toIso8601String())),
                     ('Result', b.lastSummary ?? '-'),
+                    ('Last check', b.lastVerified == null ? 'never' : fmtDateTime(b.lastVerified!.toIso8601String())),
+                    ('Check result', b.verifyError != null ? 'failed (see above)' : (b.verifySummary ?? '-')),
                   ]),
+                  const SizedBox(height: 4),
+                  const Muted('Once a week Casework test-opens the newest copy, as a restore would, and checks every '
+                      'job file is in the backup folder.', size: 12),
                   const SizedBox(height: 8),
-                  FilledButton.icon(
-                    onPressed: b.running || b.dir == null ? null : _backupNow,
-                    icon: b.running
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.backup_outlined),
-                    label: Text(b.running ? 'Backing up…' : 'Back up now'),
-                  ),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    FilledButton.icon(
+                      onPressed: b.running || b.dir == null ? null : _backupNow,
+                      icon: b.running
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.backup_outlined),
+                      label: Text(b.running ? 'Backing up…' : 'Back up now'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: b.verifying || b.running || snaps.isEmpty
+                          ? null
+                          : () => attempt(context, () async {
+                                final r = await b.verifyLatest();
+                                if (context.mounted) toast(context, 'Backup OK: $r');
+                              }),
+                      icon: b.verifying
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.fact_check_outlined),
+                      label: Text(b.verifying ? 'Checking…' : 'Check latest backup'),
+                    ),
+                  ]),
                 ]),
               ),
               Section(
@@ -180,6 +200,8 @@ class BackupStatusBanner extends StatelessWidget {
           msg = 'Backups are not set up. All data is on this PC only.';
         } else if (b.lastError != null) {
           msg = 'The last backup failed: ${b.lastError}';
+        } else if (b.verifyError != null) {
+          msg = "The backup check found a problem, so a restore may not work: ${b.verifyError}";
         } else if (b.overdue) {
           msg = b.last == null
               ? 'No backup has been made yet.'
