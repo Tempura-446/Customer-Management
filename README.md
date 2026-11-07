@@ -296,6 +296,27 @@ bar. If your logo already spells out the business name, tick **My logo already s
 | `Casework-Android.apk` | Copy it to the phone and install. Allow "install unknown apps" for your file manager. |
 | iPhone | CI checks that the iPhone app builds. Installing it needs an Apple Developer account ($99/yr) and TestFlight: see the notes in `.github/workflows/build.yml`. |
 
+### Signing the Android app (do this once)
+
+Every Android update must be signed with the same key, or the phone refuses to install it over the old version.
+Until a key is added, each build is signed with a throwaway key, so updating means uninstalling the old app first
+(sync first: anything not yet synced on that phone is lost).
+
+1. On any computer with Java, create the key. Keep the file and passwords safe: losing them means every phone must
+   uninstall and reinstall once more.
+
+   ```bash
+   keytool -genkeypair -v -keystore casework-release.jks -alias casework \
+     -keyalg RSA -keysize 2048 -validity 10000
+   ```
+2. Turn it into text: `base64 -w0 casework-release.jks` (Windows PowerShell:
+   `[Convert]::ToBase64String([IO.File]::ReadAllBytes("casework-release.jks"))`).
+3. On GitHub: **Settings → Secrets and variables → Actions → New repository secret**, add
+   `ANDROID_KEYSTORE_BASE64` (the text from step 2), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`casework`)
+   and `ANDROID_KEY_PASSWORD` (the same password, unless you chose a different one for the key).
+4. The next build is signed with it. Uninstall the old app on each phone once (after syncing), install the new APK,
+   and pair again. From then on, updates install over the top.
+
 ## Backups
 
 All data is in **`Documents\Cabinet CRM`** on the PC (the folder keeps its original name so upgrades find it): `data\cabinet_crm.db` plus the `Projects` folders.

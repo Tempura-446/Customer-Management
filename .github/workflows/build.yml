@@ -99,8 +99,28 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
-      # Signed with the debug key for now (fine for sideloading on your own phones).
-      # For Google Play, add a keystore as secrets and configure signingConfigs.
+      # Release signing. Add these repository secrets once (README, "Signing the Android app"):
+      #   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+      # Without them the APK is signed with this runner's throwaway debug key, and phones
+      # can't install it over a previous version.
+      - name: Release signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PW: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::No Android signing key in secrets: this APK is debug-signed and won't install over earlier versions."
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > android/app/release.jks
+          {
+            echo "storeFile=release.jks"
+            echo "storePassword=$STORE_PW"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=${KEY_PW:-$STORE_PW}"
+          } > android/key.properties
       - run: flutter build apk --release
       - run: cp build/app/outputs/flutter-apk/app-release.apk Casework-Android.apk
       - if: env.RELEASE_TAG == ''
