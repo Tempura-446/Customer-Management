@@ -72,7 +72,7 @@ class _FirstRunScreenState extends State<FirstRunScreen> {
                 child: Form(
                   key: _form,
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    const Icon(Icons.kitchen, size: 48),
+                    const AppIcon(size: 72),
                     const SizedBox(height: 8),
                     Text('Welcome to Cabinet CRM',
                         textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),

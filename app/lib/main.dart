@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/device_mode.dart';
 import 'services.dart';
 import 'ui/app_shell.dart';
+import 'ui/widgets/common.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,7 +73,7 @@ class _ChooseModeAppState extends State<_ChooseModeApp> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 720),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    const Icon(Icons.kitchen, size: 56),
+                    const AppIcon(size: 80),
                     const SizedBox(height: 8),
                     Text('Welcome to Cabinet CRM',
                         textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),

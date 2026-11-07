@@ -464,11 +464,22 @@ class BusinessLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final logo = businessLogo(settings);
-    if (logo == null) return Icon(Icons.kitchen, size: height);
+    if (logo == null) return AppIcon(size: height);
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: height, maxWidth: maxWidth),
       child: Image.memory(logo, fit: BoxFit.contain, gaplessPlayback: true,
-          errorBuilder: (_, _, _) => Icon(Icons.kitchen, size: height)),
+          errorBuilder: (_, _, _) => AppIcon(size: height)),
     );
   }
+}
+
+/// Cabinet CRM's own icon (shown where no business logo is set).
+class AppIcon extends StatelessWidget {
+  const AppIcon({super.key, this.size = 48});
+  final double size;
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(size * 0.22),
+        child: Image.asset('assets/icon/icon_256.png', width: size, height: size, filterQuality: FilterQuality.medium),
+      );
 }

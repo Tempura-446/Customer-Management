@@ -369,7 +369,7 @@ class _PhonePairScreenState extends State<PhonePairScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 460),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                const Icon(Icons.kitchen, size: 56),
+                const AppIcon(size: 72),
                 const SizedBox(height: 8),
                 Text(Services.desktop ? 'Connect to the main office PC' : 'Connect to your office PC',
                     textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
