@@ -385,6 +385,17 @@ bar. If your logo already spells out the business name, tick **My logo already s
 | `Casework-Android.apk` | **Not built for now.** Copy it to the phone and install. Allow "install unknown apps" for your file manager. |
 | iPhone | **Not built for now.** Installed through **TestFlight** once the Apple secrets are added (below). |
 
+**Building the installer yourself.** If GitHub can't run a release (for example, the month's build minutes are
+used up), build it on a Windows PC that has Flutter, Visual Studio (Desktop development with C++) and
+[Inno Setup 6](https://jrsoftware.org/isdl.php):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File app\tool\build_installer.ps1
+```
+
+It runs the tests, builds the app and makes `app\build\installer\Casework-Setup-<version>.exe`. Then on GitHub:
+**Releases → Draft a new release**, tag `v<version>`, attach the .exe, **Publish release**.
+
 **Phone apps are switched off for now:** releases contain the Windows installer only. To build the Android and iPhone
 apps again, start **Actions → Build → Run workflow** and tick **Also build the Android and iPhone apps** (with a
 release tag to attach them to that release).
