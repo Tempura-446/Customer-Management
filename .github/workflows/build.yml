@@ -12,6 +12,11 @@ on:
         description: "Publish a GitHub Release with this tag, e.g. v1.0.0 (leave empty for a test build)"
         required: false
         default: ""
+      phone_apps:
+        description: "Also build the Android and iPhone apps (off: Windows installer only)"
+        type: boolean
+        required: false
+        default: false
 
 env:
   FLUTTER_VERSION: "3.47.9"
@@ -93,9 +98,9 @@ jobs:
 
   android:
     needs: [test, windows]
-    # Phone builds use the most build minutes (Mac minutes count 10x), so ordinary pushes skip them.
-    # They run for releases (v* tag or a release tag typed in) and whenever the workflow is started by hand.
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    # Phone apps are off for now: only built when "Also build the Android and iPhone apps" is ticked
+    # when starting the workflow by hand. Releases are the Windows installer only.
+    if: inputs.phone_apps == true
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -153,9 +158,9 @@ jobs:
 
   ios:
     needs: test
-    # Phone builds use the most build minutes (Mac minutes count 10x), so ordinary pushes skip them.
-    # They run for releases (v* tag or a release tag typed in) and whenever the workflow is started by hand.
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    # Phone apps are off for now: only built when "Also build the Android and iPhone apps" is ticked
+    # when starting the workflow by hand. Releases are the Windows installer only.
+    if: inputs.phone_apps == true
     runs-on: macos-latest
     env:
       # TestFlight upload happens only for releases, and only once the Apple secrets exist

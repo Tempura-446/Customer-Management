@@ -382,8 +382,12 @@ bar. If your logo already spells out the business name, tick **My logo already s
 | File | What to do |
 |---|---|
 | `Casework-Setup-x.y.z.exe` | **Windows installer.** Run it on each PC and click through. It installs to Program Files, adds Start menu and optional desktop shortcuts, can start the app with Windows (tick this on the main office PC), allows sync through the firewall on private networks, and includes the Visual C++ runtime. A newer installer upgrades in place. Uninstall from Settings → Apps; your data in `Documents\Cabinet CRM` is never deleted. Until the installer is code-signed, SmartScreen shows "Windows protected your PC": click **More info → Run anyway**. |
-| `Casework-Android.apk` | Copy it to the phone and install. Allow "install unknown apps" for your file manager. |
-| iPhone | Installed through **TestFlight** once the Apple secrets are added (below). Until then CI only checks that the iPhone app builds. |
+| `Casework-Android.apk` | **Not built for now.** Copy it to the phone and install. Allow "install unknown apps" for your file manager. |
+| iPhone | **Not built for now.** Installed through **TestFlight** once the Apple secrets are added (below). |
+
+**Phone apps are switched off for now:** releases contain the Windows installer only. To build the Android and iPhone
+apps again, start **Actions → Build → Run workflow** and tick **Also build the Android and iPhone apps** (with a
+release tag to attach them to that release).
 
 ### Signing the Android app (do this once)
 
