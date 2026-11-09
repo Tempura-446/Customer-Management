@@ -1,10 +1,11 @@
 name: Build
 
+# GitHub builds only releases (a pushed v* tag) and runs started by hand under Actions → Build →
+# Run workflow. Everyday checks run on your own computer instead: app/tool/check.ps1 (Windows) or
+# app/tool/check.sh (macOS / Linux). This keeps GitHub Actions minutes for releases.
 on:
   push:
-    branches: ["**"]
     tags: ["v*"]
-  pull_request:
   workflow_dispatch:
     inputs:
       release_tag:

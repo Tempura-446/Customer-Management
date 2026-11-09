@@ -368,10 +368,16 @@ bar. If your logo already spells out the business name, tick **My logo already s
 - **Version releases (recommended).** Bump `version:` in `app/pubspec.yaml` (e.g. `1.1.0+2`) and push a tag `v1.1.0`.
   GitHub then publishes a **Release** with the Windows installer and the Android APK attached, under **Releases** on
   the repository page. Release files don't expire.
-- **Test builds.** Every other push runs the tests and builds the Windows installer, kept as a download for 2 days
-  under **Actions → Build → Artifacts**. The Android and iPhone apps are built only for releases, or when you start
-  the workflow by hand (**Actions → Build → Run workflow**, leave the tag empty), because they use the most build
-  minutes.
+- **Test builds and checks run on your own computer**, not on GitHub, so GitHub Actions minutes are kept for
+  releases. Ordinary pushes don't start a GitHub build. To check the code before a release:
+
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File app\tool\check.ps1          # analyzer + all tests
+  powershell -ExecutionPolicy Bypass -File app\tool\check.ps1 -Build   # also build the Windows app
+  ```
+
+  On macOS or Linux: `app/tool/check.sh` (add `--build` to build too). A GitHub test build of everything can still be
+  started by hand: **Actions → Build → Run workflow**, with the tag left empty.
 
 | File | What to do |
 |---|---|
@@ -440,6 +446,7 @@ Back up that folder, for example with an external drive or File History. To keep
 cd app
 flutter pub get
 flutter test                       # business rules, sync engine, PDFs
+tool/check.sh                      # analyzer + tests in one go (tool\check.ps1 on Windows)
 flutter run -d windows             # the PC app
 flutter run -d <phone>             # the phone app
 
