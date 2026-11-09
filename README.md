@@ -366,7 +366,7 @@ bar. If your logo already spells out the business name, tick **My logo already s
 ## Getting the apps
 
 - **Version releases (recommended).** Bump `version:` in `app/pubspec.yaml` (e.g. `1.1.0+2`) and push a tag `v1.1.0`.
-  GitHub then publishes a **Release** with the Windows installer and the Android APK attached, under **Releases** on
+  GitHub then publishes a **Release** with the Windows installer attached, under **Releases** on
   the repository page. Release files don't expire.
 - **Test builds and checks run on your own computer**, not on GitHub, so GitHub Actions minutes are kept for
   releases. Ordinary pushes don't start a GitHub build. To check the code before a release:
