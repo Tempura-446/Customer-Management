@@ -366,24 +366,24 @@ bar. If your logo already spells out the business name, tick **My logo already s
 ## Getting the apps
 
 - **Version releases (recommended).** Bump `version:` in `app/pubspec.yaml` (e.g. `1.1.0+2`) and push a tag `v1.1.0`.
-  GitHub then publishes a **Release** with the Windows installer attached, under **Releases** on
+  GitHub then publishes a **Release** with the Windows installer and the Android APK attached, under **Releases** on
   the repository page. Release files don't expire.
-- **Test builds and checks run on your own computer**, not on GitHub, so GitHub Actions minutes are kept for
-  releases. Ordinary pushes don't start a GitHub build. To check the code before a release:
+- **Test builds.** Every push runs the tests and builds everything (the repository is public, so GitHub's build
+  minutes are free). The installer and APK are kept as downloads for 2 days under **Actions → Build → Artifacts**.
+  The same checks can run on your own computer before pushing:
 
   ```powershell
   powershell -ExecutionPolicy Bypass -File app\tool\check.ps1          # analyzer + all tests
   powershell -ExecutionPolicy Bypass -File app\tool\check.ps1 -Build   # also build the Windows app
   ```
 
-  On macOS or Linux: `app/tool/check.sh` (add `--build` to build too). A GitHub test build of everything can still be
-  started by hand: **Actions → Build → Run workflow**, with the tag left empty.
+  On macOS or Linux: `app/tool/check.sh` (add `--build` to build too).
 
 | File | What to do |
 |---|---|
 | `Casework-Setup-x.y.z.exe` | **Windows installer.** Run it on each PC and click through. It installs to Program Files, adds Start menu and optional desktop shortcuts, can start the app with Windows (tick this on the main office PC), allows sync through the firewall on private networks, and includes the Visual C++ runtime. A newer installer upgrades in place. Uninstall from Settings → Apps; your data in `Documents\Cabinet CRM` is never deleted. Until the installer is code-signed, SmartScreen shows "Windows protected your PC": click **More info → Run anyway**. |
-| `Casework-Android.apk` | **Not built for now.** Copy it to the phone and install. Allow "install unknown apps" for your file manager. |
-| iPhone | **Not built for now.** Installed through **TestFlight** once the Apple secrets are added (below). |
+| `Casework-Android.apk` | Copy it to the phone and install. Allow "install unknown apps" for your file manager. |
+| iPhone | Installed through **TestFlight** once the Apple secrets are added (below). Until then CI only checks that the iPhone app builds. |
 
 **Building the installer yourself.** If GitHub can't run a release (for example, the month's build minutes are
 used up), build it on a Windows PC that has Flutter, Visual Studio (Desktop development with C++) and
@@ -396,9 +396,7 @@ powershell -ExecutionPolicy Bypass -File app\tool\build_installer.ps1
 It runs the tests, builds the app and makes `app\build\installer\Casework-Setup-<version>.exe`. Then on GitHub:
 **Releases → Draft a new release**, tag `v<version>`, attach the .exe, **Publish release**.
 
-**Phone apps are switched off for now:** releases contain the Windows installer only. To build the Android and iPhone
-apps again, start **Actions → Build → Run workflow** and tick **Also build the Android and iPhone apps** (with a
-release tag to attach them to that release).
+**Windows installer only:** start **Actions → Build → Run workflow** and untick **Build the Android and iPhone apps too**.
 
 ### Signing the Android app (do this once)
 

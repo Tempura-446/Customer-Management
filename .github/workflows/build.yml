@@ -1,11 +1,13 @@
 name: Build
 
-# GitHub builds only releases (a pushed v* tag) and runs started by hand under Actions → Build →
-# Run workflow. Everyday checks run on your own computer instead: app/tool/check.ps1 (Windows) or
-# app/tool/check.sh (macOS / Linux). This keeps GitHub Actions minutes for releases.
+# The repository is public, so GitHub Actions minutes are free: every push runs the tests and
+# builds every platform. The same checks can also run locally: app/tool/check.ps1 (Windows) or
+# app/tool/check.sh (macOS / Linux).
 on:
   push:
+    branches: ["**"]
     tags: ["v*"]
+  pull_request:
   workflow_dispatch:
     inputs:
       release_tag:
@@ -13,10 +15,10 @@ on:
         required: false
         default: ""
       phone_apps:
-        description: "Also build the Android and iPhone apps (off: Windows installer only)"
+        description: "Build the Android and iPhone apps too (untick for the Windows installer only)"
         type: boolean
         required: false
-        default: false
+        default: true
 
 env:
   FLUTTER_VERSION: "3.47.9"
@@ -98,9 +100,8 @@ jobs:
 
   android:
     needs: [test, windows]
-    # Phone apps are off for now: only built when "Also build the Android and iPhone apps" is ticked
-    # when starting the workflow by hand. Releases are the Windows installer only.
-    if: inputs.phone_apps == true
+    # Every push, tag and release builds the phone apps; a hand-started run can skip them.
+    if: github.event_name != 'workflow_dispatch' || inputs.phone_apps
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -158,9 +159,8 @@ jobs:
 
   ios:
     needs: test
-    # Phone apps are off for now: only built when "Also build the Android and iPhone apps" is ticked
-    # when starting the workflow by hand. Releases are the Windows installer only.
-    if: inputs.phone_apps == true
+    # Every push, tag and release builds the phone apps; a hand-started run can skip them.
+    if: github.event_name != 'workflow_dispatch' || inputs.phone_apps
     runs-on: macos-latest
     env:
       # TestFlight upload happens only for releases, and only once the Apple secrets exist
